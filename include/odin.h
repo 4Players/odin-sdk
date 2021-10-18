@@ -69,6 +69,8 @@ typedef struct OdinRoom OdinRoom;
 
 typedef struct OdinTokenGenerator OdinTokenGenerator;
 
+typedef int32_t OdinErrorCode;
+
 /**
  * All the different events emitted from an ODIN room.
  */
@@ -194,7 +196,7 @@ extern "C" {
  * diagnostics. If `buf` is `NULL` this functions simply returns the required buffer length to
  * store the output buffer.
  */
-size_t odin_error_format(uint32_t error, char *buf, size_t buf_len);
+size_t odin_error_format(OdinErrorCode error, char *buf, size_t buf_len);
 
 /**
  * Checks whether the code returned from ODIN function calls represents an error or a result.
@@ -220,48 +222,48 @@ void odin_room_destroy(struct OdinRoom *room);
  * will be dropped and stop receiving any data. Generally this should be called _once_ before
  * joining a room.
  */
-uint32_t odin_room_set_event_callback(struct OdinRoom *room,
-                                      void (*callback)(struct OdinRoom *room, const struct OdinEvent *event, void *user_data),
-                                      void *user_data);
+OdinErrorCode odin_room_set_event_callback(struct OdinRoom *room,
+                                           void (*callback)(struct OdinRoom *room, const struct OdinEvent *event, void *user_data),
+                                           void *user_data);
 
 /**
  * Takes an URL to an ODIN gateway and a token obtained externally that authorizes the client to
  * connect to a specific room. Optionally this function takes in `user_data` which will be used
  * to set the initial user data of the peer.
  */
-uint32_t odin_room_join(struct OdinRoom *room,
-                        const char *url,
-                        const char *token,
-                        const uint8_t *user_data,
-                        size_t user_data_length);
+OdinErrorCode odin_room_join(struct OdinRoom *room,
+                             const char *url,
+                             const char *token,
+                             const uint8_t *user_data,
+                             size_t user_data_length);
 
 /**
  * Deprecated and intended for internal use only.
  */
-uint32_t odin_room_join_direct(struct OdinRoom *room,
-                               const char *url,
-                               const char *room_id,
-                               const uint8_t *user_data,
-                               size_t user_data_length);
+OdinErrorCode odin_room_join_direct(struct OdinRoom *room,
+                                    const char *url,
+                                    const char *room_id,
+                                    const uint8_t *user_data,
+                                    size_t user_data_length);
 
 /**
  * Updates the user data for our own peer in the specified `OdinRoom`.
  */
-uint32_t odin_room_update_user_data(struct OdinRoom *room,
-                                    const uint8_t *user_data,
-                                    size_t user_data_length);
+OdinErrorCode odin_room_update_user_data(struct OdinRoom *room,
+                                         const uint8_t *user_data,
+                                         size_t user_data_length);
 
 /**
  * Adds a specified `OdinMediaStream` to the room. Please note, that this can only be done _once_
  * on a given media, trying to do it more than once will return an error on subsequent calls to
  * this function.
  */
-uint32_t odin_room_add_media(struct OdinRoom *room_r, struct OdinMediaStream *media);
+OdinErrorCode odin_room_add_media(struct OdinRoom *room_r, struct OdinMediaStream *media);
 
 /**
  * Configures the ODIN audio processing module on the room with the specified config.
  */
-uint32_t odin_room_configure_apm(struct OdinRoom *room, struct OdinApmConfig config);
+OdinErrorCode odin_room_configure_apm(struct OdinRoom *room, struct OdinApmConfig config);
 
 /**
  * Creates a new audio stream which can be added to a room and receive or send data over it.
@@ -284,7 +286,7 @@ void odin_media_stream_destroy(struct OdinMediaStream *stream);
 /**
  * Returns the media ID of the specified `OdinMediaStream`.
  */
-uint32_t odin_media_get_media_id(struct OdinMediaStream *stream);
+OdinErrorCode odin_media_get_media_id(struct OdinMediaStream *stream);
 
 /**
  * Returns the type of the specified media stream.
@@ -296,13 +298,13 @@ enum OdinMediaStreamType odin_media_stream_type(struct OdinMediaStream *stream);
 /**
  * Sends data to the audio stream. The data has to be interleaved [-1, 1] float data.
  */
-uint32_t odin_audio_push_data(struct OdinMediaStream *stream, float *buf, size_t buf_len);
+OdinErrorCode odin_audio_push_data(struct OdinMediaStream *stream, float *buf, size_t buf_len);
 
 /**
  * Returns the number of available sample available in the audio buffer of the of the specified
  * `OdinMediaStream`.
  */
-size_t odin_audio_data_len(struct OdinMediaStream *stream);
+OdinErrorCode odin_audio_data_len(struct OdinMediaStream *stream);
 
 /**
  * Reads audio data from the specified `OdinMediaStream`. This will return audio data in 48kHz
@@ -310,10 +312,10 @@ size_t odin_audio_data_len(struct OdinMediaStream *stream);
  *
  * Note: `out_channel_layout` is reserved for future use.
  */
-uint32_t odin_audio_read_data(struct OdinMediaStream *stream,
-                              float *out_buffer,
-                              size_t out_buffer_len,
-                              enum OdinChannelLayout out_channel_layout);
+OdinErrorCode odin_audio_read_data(struct OdinMediaStream *stream,
+                                   float *out_buffer,
+                                   size_t out_buffer_len,
+                                   enum OdinChannelLayout out_channel_layout);
 
 /**
  * Reads up to `out_buffer_len` samples from the given streams and mixes them into the `out_buffer`.
@@ -328,21 +330,21 @@ uint32_t odin_audio_read_data(struct OdinMediaStream *stream,
  * If enabled this will also apply any audio processing to the output stream and feed back required
  * data to the internal audio processing pipeline which requires a final mix.
  */
-uint32_t odin_audio_mix_streams(struct OdinRoom *room,
-                                struct OdinMediaStream *const *streams,
-                                size_t stream_count,
-                                float *out_buffer,
-                                size_t *out_buffer_len,
-                                enum OdinChannelLayout out_channel_layout);
+OdinErrorCode odin_audio_mix_streams(struct OdinRoom *room,
+                                     struct OdinMediaStream *const *streams,
+                                     size_t stream_count,
+                                     float *out_buffer,
+                                     size_t *out_buffer_len,
+                                     enum OdinChannelLayout out_channel_layout);
 
 /**
  * Processes the reverse audio stream, also known as the loopback data to be used in the ODIN echo
  * canceller. This should only be done if you are _NOT_ using `odin_audio_mix_streams`.
  */
-uint32_t odin_audio_process_reverse(struct OdinRoom *room,
-                                    float *buffer,
-                                    size_t buffer_len,
-                                    enum OdinChannelLayout out_channel_layout);
+OdinErrorCode odin_audio_process_reverse(struct OdinRoom *room,
+                                         float *buffer,
+                                         size_t buffer_len,
+                                         enum OdinChannelLayout out_channel_layout);
 
 /**
  * Starts the internal ODIN client runtime. This is ref-counted so you need matching calls of
@@ -362,23 +364,29 @@ void odin_shutdown(void);
  * Creates a new access key required to access the ODIN network. An access key is a 44 character
  * long Base64-String, which consists of a version, random bytes and a checksum.
  */
-uint32_t odin_access_key_generate(char *buf, size_t buf_len);
+OdinErrorCode odin_access_key_generate(char *buf, size_t buf_len);
+
+/**
+ * Retreives the key ID from a specified access key. The key ID is included in room tokens,
+ * making it possible to identify which public key must be used for verification.
+ */
+OdinErrorCode odin_access_key_id(const char *access_key, char *out_key_id, size_t out_key_id_len);
 
 /**
  * Retreives the public key from a specified access key. The public key is based on the Ed25519
  * curve and must be submitted to _4Players_ so that a generated room token can be verified.
  */
-uint32_t odin_access_key_public_key(const char *access_key,
-                                    char *out_public_key,
-                                    size_t out_public_key_len);
+OdinErrorCode odin_access_key_public_key(const char *access_key,
+                                         char *out_public_key,
+                                         size_t out_public_key_len);
 
 /**
  * Retreives the secret key from a specified access key. The secret key is based on the Ed25519
  * curve and used to sign a generated room token to access the ODIN network.
  */
-uint32_t odin_access_key_secret_key(const char *access_key,
-                                    char *out_secret_key,
-                                    size_t out_secret_key_len);
+OdinErrorCode odin_access_key_secret_key(const char *access_key,
+                                         char *out_secret_key,
+                                         size_t out_secret_key_len);
 
 /**
  * Creates a new token generator instance.
@@ -393,22 +401,22 @@ void odin_token_generator_destroy(struct OdinTokenGenerator *generator);
 /**
  * Generates a signed JWT, which can be used by an ODIN client to join a room.
  */
-uint32_t odin_token_generator_create_token(struct OdinTokenGenerator *generator,
-                                           const char *room_id,
-                                           const char *user_id,
-                                           char *out_token,
-                                           size_t out_token_len);
+OdinErrorCode odin_token_generator_create_token(struct OdinTokenGenerator *generator,
+                                                const char *room_id,
+                                                const char *user_id,
+                                                char *out_token,
+                                                size_t out_token_len);
 
 /**
  * Generates a signed JWT such as `odin_token_generator_create_token` and allows passing a custom
  * set of `OdinTokenOptions` for advanced use-cases.
  */
-uint32_t odin_token_generator_create_token_ex(struct OdinTokenGenerator *generator,
-                                              const char *room_id,
-                                              const char *user_id,
-                                              const struct OdinTokenOptions *options,
-                                              char *out_token,
-                                              size_t out_token_len);
+OdinErrorCode odin_token_generator_create_token_ex(struct OdinTokenGenerator *generator,
+                                                   const char *room_id,
+                                                   const char *user_id,
+                                                   const struct OdinTokenOptions *options,
+                                                   char *out_token,
+                                                   size_t out_token_len);
 
 #ifdef __cplusplus
 } // extern "C"
