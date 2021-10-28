@@ -203,7 +203,7 @@ size_t odin_error_format(OdinErrorCode error, char *buf, size_t buf_len);
  * This is used to easier work with certain functions that might return an error or a valid
  * result like `odin_audio_data_len`.
  */
-bool odin_is_error(uint32_t code);
+bool odin_is_error(OdinErrorCode code);
 
 /**
  * Creates as a new room in an unconnected state. Please note, that this function will return
@@ -227,9 +227,9 @@ OdinErrorCode odin_room_set_event_callback(struct OdinRoom *room,
                                            void *user_data);
 
 /**
- * Takes an URL to an ODIN gateway and a token obtained externally that authorizes the client to
- * connect to a specific room. Optionally this function takes in `user_data` which will be used
- * to set the initial user data of the peer.
+ * Takes an URL to an ODIN sgateway (e.g. `https://gateway.odin.4players.io`) and a signed room
+ * token obtained externally that authorizes the client to connect to a specific room. Optionally
+ * this function takes in `user_data` which will be used to set the initial user data of the peer.
  */
 OdinErrorCode odin_room_join(struct OdinRoom *room,
                              const char *url,
