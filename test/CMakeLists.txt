@@ -38,4 +38,8 @@ link_directories(${ODIN_SDK_DIR})
 add_executable(${PROJECT_NAME} src/main.c)
 target_link_libraries(${PROJECT_NAME} PRIVATE odin)
 
+if(UNIX AND NOT APPLE)
+    target_link_libraries(${PROJECT_NAME} PRIVATE dl m pthread)
+endif()
+
 file(COPY "${ODIN_SDK_DIR}/${ODIN_SDK_LIB}" DESTINATION ${CMAKE_BINARY_DIR})
