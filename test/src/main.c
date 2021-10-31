@@ -5,7 +5,9 @@
  */
 
 #define MINIAUDIO_IMPLEMENTATION
+#define __STDC_FORMAT_MACROS
 
+#include <inttypes.h>
 #include <stdio.h>
 
 #include "miniaudio.h"
@@ -45,11 +47,11 @@ void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
     if (event->tag == OdinEvent_ConnectionStateChanged) {
         printf("Connection state changed to %d\n", event->connection_state_changed);
     } else if (event->tag == OdinEvent_PeerJoined) {
-        printf("Peer(%llu) joined\n", event->peer_joined.id);
+        printf("Peer(%"PRIu64") joined\n", event->peer_joined.id);
     } else if (event->tag == OdinEvent_PeerLeft) {
-        printf("Peer(%llu) left\n", event->peer_left.id);
+        printf("Peer(%"PRIu64") left\n", event->peer_left.id);
     } else if (event->tag == OdinEvent_PeerUpdated) {
-        printf("Peer(%llu) updated\n", event->peer_updated.id);
+        printf("Peer(%"PRIu64") updated\n", event->peer_updated.id);
     } else if (event->tag == OdinEvent_MediaAdded) {
         if (event->media_added.peer_id != own_peer_id) {
             /*
@@ -58,7 +60,7 @@ void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
             output_streams[output_streams_len] = event->media_added.stream;
             output_streams_len += 1;
         }
-        printf("Media(%d) added by Peer(%llu)\n", event->media_added.media_id, event->media_added.peer_id);
+        printf("Media(%d) added by Peer(%"PRIu64")\n", event->media_added.media_id, event->media_added.peer_id);
     } else if (event->tag == OdinEvent_MediaRemoved) {
         for (size_t i = 0; i < output_streams_len; ++i) {
             if (odin_media_stream_media_id(output_streams[i]) == event->media_removed.media_id) {
@@ -185,7 +187,7 @@ int main(int argc, char* argv[])
         print_error(error, "Failed to join room");
         return 1;
     }
-    printf("Connection established and associated with peer id %llu\n", own_peer_id);
+    printf("Connection established and associated with peer id %"PRIu64"\n", own_peer_id);
 
     /*
      * Configure audio processing options for the room
