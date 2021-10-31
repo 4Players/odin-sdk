@@ -1,5 +1,10 @@
+build
+build-*
+deps
+*.user
 .DS_Store
 .Spotlight-V100
 .Trashes
 ehthumbs.db
 Thumbs.db
+*.user
