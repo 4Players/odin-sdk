@@ -23,7 +23,11 @@ if(WIN32)
 endif()
 
 if(APPLE)
-    set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/macos-x86_64")
+    if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "arm64")
+        set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/macos-aarch64")
+    else()
+        set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/macos-x86_64")
+    endif()
     set(ODIN_SDK_LIB "libodin.dylib")
 endif()
 
