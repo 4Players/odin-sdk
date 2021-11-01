@@ -49,24 +49,40 @@ void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
     } else if (event->tag == OdinEvent_PeerJoined) {
         printf("Peer(%"PRIu64") joined\n", event->peer_joined.id);
     } else if (event->tag == OdinEvent_PeerLeft) {
+        /*
+         * Walk through ur global list of output streams and destroy the ones owned by the peer
+         */
+        for (size_t i = 0; i < output_streams_len; ++i) {
+            uint64_t stream_peer_id;
+            odin_media_stream_peer_id(output_streams[i], &stream_peer_id);
+            if (stream_peer_id == event->peer_left.id) {
+                OdinMediaStream *removed_stream = output_streams[i];
+                output_streams_len -= 1;
+                output_streams[i] = output_streams[output_streams_len];
+                output_streams[output_streams_len] = NULL;
+                odin_media_stream_destroy(removed_stream);
+            }
+        }
         printf("Peer(%"PRIu64") left\n", event->peer_left.id);
     } else if (event->tag == OdinEvent_PeerUpdated) {
         printf("Peer(%"PRIu64") updated\n", event->peer_updated.id);
     } else if (event->tag == OdinEvent_MediaAdded) {
+        /*
+         * Add the new output stream to our global list for later playback mixing
+         */
         if (event->media_added.peer_id != own_peer_id) {
-            /*
-             * Add the new output stream to our global list for mixing
-             */
             output_streams[output_streams_len] = event->media_added.stream;
             output_streams_len += 1;
         }
         printf("Media(%d) added by Peer(%"PRIu64")\n", event->media_added.media_id, event->media_added.peer_id);
     } else if (event->tag == OdinEvent_MediaRemoved) {
+        /*
+         * Find the output stream in our global list and destroy it
+         */
         for (size_t i = 0; i < output_streams_len; ++i) {
-            if (odin_media_stream_media_id(output_streams[i]) == event->media_removed.media_id) {
-                /*
-                 * Remove the output stream from gour global list and destroy it
-                 */
+            uint16_t stream_media_id;
+            odin_media_stream_media_id(output_streams[i], &stream_media_id);
+            if (stream_media_id == event->media_removed.media_id) {
                 OdinMediaStream *removed_stream = output_streams[i];
                 output_streams_len -= 1;
                 output_streams[i] = output_streams[output_streams_len];
@@ -118,7 +134,7 @@ int main(int argc, char* argv[])
     char      room_token[256];
     ma_device input_device;
     ma_device output_device;
-    int       error;
+    uint32_t  error;
 
     /*
      * Grab the user-specified room id or fallback to default

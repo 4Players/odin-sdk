@@ -237,7 +237,7 @@ OdinReturnCode odin_room_join(struct OdinRoom *room,
                               const char *token,
                               const uint8_t *user_data,
                               size_t user_data_length,
-                              uint64_t *own_peer_id_out);
+                              uint64_t *out_own_peer_id);
 
 /**
  * Updates the user data for our own peer in the specified `OdinRoom`.
@@ -277,9 +277,14 @@ struct OdinMediaStream *odin_video_stream_create(void);
 void odin_media_stream_destroy(struct OdinMediaStream *stream);
 
 /**
- * Returns the media ID of the specified `OdinMediaStream`.
+ * Retreives the media ID of the specified `OdinMediaStream`.
  */
-OdinReturnCode odin_media_stream_media_id(struct OdinMediaStream *stream);
+OdinReturnCode odin_media_stream_media_id(struct OdinMediaStream *stream, uint16_t *out_media_id);
+
+/**
+ * Retreives the peer ID of the specified `OdinMediaStream`.
+ */
+OdinReturnCode odin_media_stream_peer_id(struct OdinMediaStream *stream, uint64_t *out_peer_id);
 
 /**
  * Returns the type of the specified media stream.
