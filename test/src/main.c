@@ -165,6 +165,7 @@ int main(int argc, char* argv[])
     } else {
         odin_access_key_generate(gen_access_key, sizeof(gen_access_key));
         access_key = gen_access_key;
+        printf("Generated new access key '%s' for testing\n", access_key);
     }
 
     /*
