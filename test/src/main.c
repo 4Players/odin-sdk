@@ -36,6 +36,31 @@ void print_error(OdinReturnCode error, const char* text)
 }
 
 /**
+ * @brief Adds a media stream to the global list of output streams
+ *
+ * @param stream    ODIN media stream to insert
+ */
+void insert_output_stream(OdinMediaStream* stream)
+{
+    output_streams[output_streams_len] = stream;
+    output_streams_len += 1;
+}
+
+/**
+ * @brief Removes a media stream from the global list of output stream and destroys it
+ *
+ * @param index    Position of the ODIN media stream to remove
+ */
+void remove_output_stream(size_t index)
+{
+    OdinMediaStream *removed_stream = output_streams[index];
+    output_streams_len -= 1;
+    output_streams[index] = output_streams[output_streams_len];
+    output_streams[output_streams_len] = NULL;
+    odin_media_stream_destroy(removed_stream);
+}
+
+/**
  * @brief Handler for ODIN room event callbacks
  *
  * @param room     Pointer to ODIN room that triggered the event
@@ -50,17 +75,13 @@ void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
         printf("Peer(%"PRIu64") joined\n", event->peer_joined.id);
     } else if (event->tag == OdinEvent_PeerLeft) {
         /*
-         * Walk through ur global list of output streams and destroy the ones owned by the peer
+         * Walk through our global list of output streams and destroy the ones owned by the peer
          */
         for (size_t i = 0; i < output_streams_len; ++i) {
             uint64_t stream_peer_id;
             odin_media_stream_peer_id(output_streams[i], &stream_peer_id);
             if (stream_peer_id == event->peer_left.id) {
-                OdinMediaStream *removed_stream = output_streams[i];
-                output_streams_len -= 1;
-                output_streams[i] = output_streams[output_streams_len];
-                output_streams[output_streams_len] = NULL;
-                odin_media_stream_destroy(removed_stream);
+                remove_output_stream(i);
             }
         }
         printf("Peer(%"PRIu64") left\n", event->peer_left.id);
@@ -71,8 +92,7 @@ void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
          * Add the new output stream to our global list for later playback mixing
          */
         if (event->media_added.peer_id != own_peer_id) {
-            output_streams[output_streams_len] = event->media_added.stream;
-            output_streams_len += 1;
+            insert_output_stream(event->media_added.stream);
         }
         printf("Media(%d) added by Peer(%"PRIu64")\n", event->media_added.media_id, event->media_added.peer_id);
     } else if (event->tag == OdinEvent_MediaRemoved) {
@@ -83,11 +103,7 @@ void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
             uint16_t stream_media_id;
             odin_media_stream_media_id(output_streams[i], &stream_media_id);
             if (stream_media_id == event->media_removed.media_id) {
-                OdinMediaStream *removed_stream = output_streams[i];
-                output_streams_len -= 1;
-                output_streams[i] = output_streams[output_streams_len];
-                output_streams[output_streams_len] = NULL;
-                odin_media_stream_destroy(removed_stream);
+                remove_output_stream(i);
                 break;
             }
         }
