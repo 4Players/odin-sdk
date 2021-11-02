@@ -125,8 +125,8 @@ typedef struct OdinEvent {
 } OdinEvent;
 
 /**
- * Per-room configuration of the ODIN audio processing module which provides
- * a variety of enhancement algorithms.
+ * Per-room configuration of the ODIN audio processing module which provides a variety of smart
+ * enhancement algorithms.
  */
 typedef struct OdinApmConfig {
     /**
@@ -192,27 +192,28 @@ extern "C" {
 #endif // __cplusplus
 
 /**
- * Formats an ODIN error code into a human readable string representation for use in logging and
+ * Formats an ODIN return code into a human readable string representation for use in logging and
  * diagnostics. If `buf` is `NULL` this functions simply returns the required buffer length to
  * store the output buffer.
  */
 size_t odin_error_format(OdinReturnCode error, char *buf, size_t buf_len);
 
 /**
- * Checks whether the code returned from ODIN function calls represents an error or a result.
- * This is used to easier work with certain functions that might return an error or a valid
- * result like `odin_audio_data_len`.
+ * Checks whether the code returned from ODIN function calls represents an error or an actual
+ * result. This is used to easier work with certain functions that might return an error or a
+ * valid result like `odin_audio_data_len`.
  */
 bool odin_is_error(OdinReturnCode code);
 
 /**
- * Creates as a new room in an unconnected state. Please note, that this function will return
- * `NULL` when the internal ODIN client runtime has already been terminated using `odin_shutdown`.
+ * Returns a pointer for a new ODIN room in an unconnected state. Please note, that this function
+ * will return `NULL` when the internal ODIN client runtime is not initialized or has already been
+ * terminated using `odin_shutdown`.
  */
 struct OdinRoom *odin_room_create(void);
 
 /**
- * Destroys the given room and disconnects from the server.
+ * Destroys the specified ODIN room and closes the connection to the server if needed.
  */
 void odin_room_destroy(struct OdinRoom *room);
 
@@ -227,10 +228,10 @@ OdinReturnCode odin_room_set_event_callback(struct OdinRoom *room,
                                             void *extra_data);
 
 /**
- * Takes an URL to an ODIN sgateway (e.g. `https://gateway.odin.4players.io`) and a signed room
+ * Takes an URL to an ODIN gateway (e.g. `https://gateway.odin.4players.io`) and a signed room
  * token obtained externally that authorizes the client to connect to a specific room. Optionally
  * this function takes in `user_data` which will be used to set the initial user data of the peer
- * and `own_peer_id_out` which will be filled with your own ID if provided.
+ * and `out_own_peer_id` which will be filled with your own ID if provided.
  */
 OdinReturnCode odin_room_join(struct OdinRoom *room,
                               const char *url,
