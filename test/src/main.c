@@ -23,6 +23,16 @@ size_t           output_streams_len = 0;
 uint64_t         own_peer_id;
 
 /**
+ * @brief Custom struct used to send data over the network in this example.
+ * @note  Please keep in mind that padding and alignment of structs may differ between platforms so make sure to take care of
+ *        packing accordingly to assure compatibility.
+ */
+struct MyMessage {
+    int32_t foo;
+    int32_t bar;
+};
+
+/**
  * @brief Basic helper function to print formatted error messages to standard error I/O
  *
  * @param error    ODIN error code to format
@@ -108,6 +118,13 @@ void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
             }
         }
         printf("Media(%d) removed\n", event->media_removed.media_id);
+    } else if (event->tag == OdinEvent_MessageReceived) {
+        /*
+         * Handle arbitrary data sent by other peers
+         */
+        if (event->message_received.peer_id != own_peer_id) {
+            printf("Peer(%"PRIu64") sent a message with %zu bytes\n", event->message_received.peer_id, event->message_received.data_len);
+        }
     }
 }
 
@@ -262,7 +279,7 @@ int main(int argc, char* argv[])
     input_config.sampleRate        = 48000;
     input_config.dataCallback      = handle_audio_data;
     ma_device_init(NULL, &input_config, &input_device);
-    if(ma_device_start(&input_device) != MA_SUCCESS) {
+    if (ma_device_start(&input_device) != MA_SUCCESS) {
         fprintf(stderr, "Failed to open capture device\n");
         ma_device_uninit(&input_device);
     }
@@ -276,10 +293,19 @@ int main(int argc, char* argv[])
     output_config.sampleRate        = 48000;
     output_config.dataCallback      = handle_audio_data;
     ma_device_init(NULL, &output_config, &output_device);
-    if(ma_device_start(&output_device) != MA_SUCCESS) {
+    if (ma_device_start(&output_device) != MA_SUCCESS) {
         fprintf(stderr, "Failed to open playback device\n");
         ma_device_uninit(&output_device);
     }
+
+    /*
+     * Send some arbitrary data to other peers in the same room
+     */
+    struct MyMessage msg = {
+        .foo = 1,
+        .bar = 2,
+    };
+    odin_room_send_message(room, NULL, 0, (uint8_t*) &msg, sizeof(msg));
 
     /*
      * Wait for user input

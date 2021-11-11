@@ -80,6 +80,7 @@ typedef enum OdinEventTag {
     OdinEvent_PeerUpdated,
     OdinEvent_MediaAdded,
     OdinEvent_MediaRemoved,
+    OdinEvent_MessageReceived,
     OdinEvent_ConnectionStateChanged,
     OdinEvent_None,
 } OdinEventTag;
@@ -110,6 +111,12 @@ typedef struct OdinEvent_MediaRemovedData {
     uint16_t media_id;
 } OdinEvent_MediaRemovedData;
 
+typedef struct OdinEvent_MessageReceivedData {
+    uint64_t peer_id;
+    const uint8_t *data;
+    size_t data_len;
+} OdinEvent_MessageReceivedData;
+
 typedef struct OdinEvent {
     OdinEventTag tag;
     union {
@@ -118,6 +125,7 @@ typedef struct OdinEvent {
         OdinEvent_PeerUpdatedData peer_updated;
         OdinEvent_MediaAddedData media_added;
         OdinEvent_MediaRemovedData media_removed;
+        OdinEvent_MessageReceivedData message_received;
         struct {
             enum OdinConnectionState connection_state_changed;
         };
@@ -253,6 +261,16 @@ OdinReturnCode odin_room_update_user_data(struct OdinRoom *room,
  * this function.
  */
 OdinReturnCode odin_room_add_media(struct OdinRoom *room_r, struct OdinMediaStream *media);
+
+/**
+ * Sends arbitrary data to a list of target peers over the ODIN server. If `NULL` is specified, the
+ * message will be sent to all peers in the same room, including yourself.
+ */
+OdinReturnCode odin_room_send_message(struct OdinRoom *room,
+                                      const uint64_t *peer_id_list,
+                                      size_t peer_id_list_size,
+                                      const uint8_t *data,
+                                      size_t data_length);
 
 /**
  * Configures the ODIN audio processing module on the room with the specified config.
