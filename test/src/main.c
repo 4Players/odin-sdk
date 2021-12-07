@@ -288,6 +288,8 @@ int main(int argc, char* argv[])
     if (ma_device_start(&input_device) != MA_SUCCESS) {
         fprintf(stderr, "Failed to open capture device\n");
         ma_device_uninit(&input_device);
+    } else {
+        printf("Using capture device '%s'\n", input_device.capture.name);
     }
 
     /*
@@ -302,6 +304,8 @@ int main(int argc, char* argv[])
     if (ma_device_start(&output_device) != MA_SUCCESS) {
         fprintf(stderr, "Failed to open playback device\n");
         ma_device_uninit(&output_device);
+    } else {
+        printf("Using playback device '%s'\n", output_device.playback.name);
     }
 
     /*
