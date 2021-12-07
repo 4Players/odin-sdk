@@ -314,15 +314,15 @@ int main(int argc, char* argv[])
     getchar();
 
     /*
+     * Shutdown miniaudio input/output devices
+     */
+    ma_device_uninit(&input_device);
+    ma_device_uninit(&output_device);
+
+    /*
      * Destroy the input audio stream.
      */
     odin_media_stream_destroy(input_stream);
-
-    /*
-     * Shutdown miniaudio input/output devices
-     */
-    ma_device_stop(&input_device);
-    ma_device_stop(&output_device);
 
     /*
      * Leave the room and close the connection
