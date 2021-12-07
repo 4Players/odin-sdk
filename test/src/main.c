@@ -148,7 +148,7 @@ void handle_audio_data(ma_device* device, void* output, const void* input, ma_ui
         }
     } else {
         /*
-         * Fill the miniaudio output buffer with mixed data from available ODIN output streams
+         * Keep things simple and fill the miniaudio output buffer with mixed data from available ODIN output streams
          */
         size_t samples_read = frame_count;
         int error = odin_audio_mix_streams(room, output_streams, output_streams_len, output, &samples_read, OdinChannelLayout_Mono);
@@ -175,7 +175,13 @@ int main(int argc, char* argv[])
     room_id = (argc > 1) ? argv[1] : DEFAULT_ROOM_ID;
 
     /*
-     * Grab the user-specified access key or generate a test key if needed
+     * Grab the user-specified access key or generate a local test key if needed
+     *
+     * ===== IMPORTANT =====
+     * Your access key is the unique authentication key to be used to generate room tokens for accessing the ODIN
+     * server network. Think of it as your individual username and password combination all wrapped up into a single
+     * non-comprehendable string of characters, and treat it with the same respect. For your own security, we strongly
+     * recommend that you NEVER put an access key in your client-side code.
      */
     if (argc > 2) {
         access_key = argv[2];
@@ -219,7 +225,7 @@ int main(int argc, char* argv[])
     odin_token_generator_destroy(generator);
 
     /*
-     * Create a new ODIN room in an unconnected state
+     * Create a new ODIN room pointer in an unconnected state
      */
     room = odin_room_create();
 
@@ -262,7 +268,7 @@ int main(int argc, char* argv[])
     input_stream = odin_audio_stream_create(audio_config);
 
     /*
-     * Add input audio stream to room which is effetively unmuting the mic
+     * Add input audio stream to room which is effetively enabling the microphone input
      */
     error = odin_room_add_media(room, input_stream);
     if (odin_is_error(error)) {
@@ -299,7 +305,7 @@ int main(int argc, char* argv[])
     }
 
     /*
-     * Send some arbitrary data to other peers in the same room
+     * Send some arbitrary data to all peers in the room
      */
     struct MyMessage msg = {
         .foo = 1,
