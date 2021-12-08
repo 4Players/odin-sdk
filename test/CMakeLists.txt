@@ -42,6 +42,10 @@ link_directories(${ODIN_SDK_DIR})
 add_executable(${PROJECT_NAME} src/main.c)
 target_link_libraries(${PROJECT_NAME} PRIVATE odin)
 
+if(APPLE)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_INSTALL_NAME_TOOL} -rpath ${ODIN_SDK_DIR} "@executable_path" $<TARGET_FILE:${PROJECT_NAME}>)
+endif()
+
 if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} PRIVATE dl m pthread)
 endif()
