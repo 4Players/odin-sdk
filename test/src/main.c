@@ -20,7 +20,6 @@ OdinRoom*        room;
 OdinMediaStream* input_stream;
 OdinMediaStream* output_streams[512];
 size_t           output_streams_len = 0;
-uint64_t         own_peer_id;
 
 /**
  * @brief Custom struct used to send data over the network in this example.
@@ -79,10 +78,12 @@ void remove_output_stream(size_t index)
  */
 void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
 {
-    if (event->tag == OdinEvent_ConnectionStateChanged) {
-        printf("Connection state changed to %d\n", event->connection_state_changed);
+    if (event->tag == OdinEvent_RoomConnectionStateChanged) {
+        printf("Connection state changed to %d due to reason %d\n", event->room_connection_state_changed.state, event->room_connection_state_changed.reason);
+    } else if (event->tag == OdinEvent_Joined) {
+        printf("Room '%s' owned by '%s' joined successfully as Peer(%"PRIu64")\n", event->joined.room_id, event->joined.customer, event->joined.own_peer_id);
     } else if (event->tag == OdinEvent_PeerJoined) {
-        printf("Peer(%"PRIu64") joined\n", event->peer_joined.id);
+        printf("Peer(%"PRIu64") joined with user ID '%s'\n", event->peer_joined.peer_id, event->peer_joined.user_id);
     } else if (event->tag == OdinEvent_PeerLeft) {
         /*
          * Walk through our global list of output streams and destroy the ones owned by the peer
@@ -90,20 +91,20 @@ void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
         for (size_t i = 0; i < output_streams_len; ++i) {
             uint64_t stream_peer_id;
             odin_media_stream_peer_id(output_streams[i], &stream_peer_id);
-            if (stream_peer_id == event->peer_left.id) {
+            if (stream_peer_id == event->peer_left.peer_id) {
                 remove_output_stream(i);
             }
         }
-        printf("Peer(%"PRIu64") left\n", event->peer_left.id);
-    } else if (event->tag == OdinEvent_PeerUpdated) {
-        printf("Peer(%"PRIu64") updated\n", event->peer_updated.id);
+        printf("Peer(%"PRIu64") left\n", event->peer_left.peer_id);
+    } else if (event->tag == OdinEvent_PeerUserDataChanged) {
+        printf("Peer(%"PRIu64") user data updated with %zu bytes\n", event->peer_user_data_changed.peer_id, event->peer_user_data_changed.peer_user_data_len);
+    } else if (event->tag == OdinEvent_RoomUserDataChanged) {
+        printf("Room user data updated with %zu bytes\n", event->room_user_data_changed.room_user_data_len);
     } else if (event->tag == OdinEvent_MediaAdded) {
         /*
          * Add the new output stream to our global list for later playback mixing
          */
-        if (event->media_added.peer_id != own_peer_id) {
-            insert_output_stream(event->media_added.stream);
-        }
+        insert_output_stream(event->media_added.stream);
         printf("Media(%d) added by Peer(%"PRIu64")\n", event->media_added.media_id, event->media_added.peer_id);
     } else if (event->tag == OdinEvent_MediaRemoved) {
         /*
@@ -117,14 +118,11 @@ void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
                 break;
             }
         }
-        printf("Media(%d) removed\n", event->media_removed.media_id);
+        printf("Media(%d) removed by Peer(%"PRIu64")\n", event->media_removed.media_id, event->media_removed.peer_id);
+    } else if (event->tag == OdinEvent_MediaActiveStateChanged) {
+        printf("Peer(%"PRIu64") %s sending data on Media(%d)\n", event->media_active_state_changed.peer_id, event->media_active_state_changed.active ? "started" : "stopped", event->media_active_state_changed.media_id);
     } else if (event->tag == OdinEvent_MessageReceived) {
-        /*
-         * Handle arbitrary data sent by other peers
-         */
-        if (event->message_received.peer_id != own_peer_id) {
-            printf("Peer(%"PRIu64") sent a message with %zu bytes\n", event->message_received.peer_id, event->message_received.data_len);
-        }
+        printf("Peer(%"PRIu64") sent a message with %zu bytes\n", event->message_received.peer_id, event->message_received.data_len);
     }
 }
 
@@ -142,7 +140,7 @@ void handle_audio_data(ma_device* device, void* output, const void* input, ma_ui
         /*
          * Push audio buffer from miniaudio callback to ODIN input stream
          */
-        int error = odin_audio_push_data(input_stream, (float*) input, frame_count);
+        int error = odin_audio_push_data(input_stream, input, frame_count);
         if (odin_is_error(error)) {
             print_error(error, "Failed to push audio data");
         }
@@ -164,7 +162,7 @@ int main(int argc, char* argv[])
     char*     gateway_url;
     char*     access_key;
     char      gen_access_key[128];
-    char      room_token[256];
+    char      room_token[512];
     ma_device input_device;
     ma_device output_device;
     uint32_t  error;
@@ -199,7 +197,7 @@ int main(int argc, char* argv[])
     /*
      * Initialize the ODIN runtime
      */
-    odin_startup();
+    odin_startup(ODIN_VERSION);
 
     /*
      * Spawn a new token generator using the specified access key
@@ -213,7 +211,7 @@ int main(int argc, char* argv[])
     /*
      * Generate a new room token to access the ODIN network
      */
-    error = odin_token_generator_create_token(generator, room_id, "", room_token, sizeof(room_token));
+    error = odin_token_generator_create_token(generator, room_id, "My User ID", room_token, sizeof(room_token));
     if (odin_is_error(error)) {
         print_error(error, "Failed to generate room token");
         return 1;
@@ -232,18 +230,20 @@ int main(int argc, char* argv[])
     /*
      * Set a handler for ODIN events
      */
-    odin_room_set_event_callback(room, handle_odin_event, NULL);
+    error = odin_room_set_event_callback(room, handle_odin_event, NULL);
+    if (odin_is_error(error)) {
+        print_error(error, "Failed to set room event callback");
+    }
 
     /*
      * Establish a connection to the ODIN network and join the specified room without custom user data
      */
     printf("Joining room '%s' using '%s'\n", room_id, gateway_url);
-    error = odin_room_join(room, gateway_url, room_token, NULL, 0, &own_peer_id);
+    error = odin_room_join(room, gateway_url, room_token);
     if (odin_is_error(error)) {
         print_error(error, "Failed to join room");
         return 1;
     }
-    printf("Connection established and associated with peer id %"PRIu64"\n", own_peer_id);
 
     /*
      * Configure audio processing options for the room
@@ -256,7 +256,11 @@ int main(int argc, char* argv[])
         .noise_suppression_level = OdinNoiseSuppsressionLevel_Moderate,
         .transient_suppressor    = false,
     };
-    odin_room_configure_apm(room, apm_config);
+    error = odin_room_configure_apm(room, apm_config);
+    if (odin_is_error(error)) {
+        print_error(error, "Failed to configure room audio processing options");
+        return 1;
+    }
 
     /*
      * Create the input audio stream with a samplerate of 48 kHz
@@ -315,7 +319,10 @@ int main(int argc, char* argv[])
         .foo = 1,
         .bar = 2,
     };
-    odin_room_send_message(room, NULL, 0, (uint8_t*) &msg, sizeof(msg));
+    error = odin_room_send_message(room, NULL, 0, (uint8_t*) &msg, sizeof(msg));
+    if (odin_is_error(error)) {
+        print_error(error, "Failed to send message");
+    }
 
     /*
      * Wait for user input

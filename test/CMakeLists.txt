@@ -11,7 +11,7 @@ include(FetchContent)
 FetchContent_Declare(
     miniaudio
     GIT_REPOSITORY https://github.com/mackron/miniaudio.git
-    GIT_TAG        dbca7a3b44594e0226f887472b31f54aa5f14214 # version 0.10.42
+    GIT_TAG        8686f52e6625e562f4756b946696692c016324ab # version 0.10.43
     DOWNLOAD_DIR   ${MINIAUDIO_DIR}
     SOURCE_DIR     ${MINIAUDIO_DIR}
 )
@@ -34,6 +34,30 @@ endif()
 if(UNIX AND NOT APPLE)
     set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/linux-x86_64")
     set(ODIN_SDK_LIB "libodin.so")
+endif()
+
+set(ARCH ${CMAKE_SYSTEM_PROCESSOR})
+if(ARCH STREQUAL "x86_64" OR ARCH STREQUAL "amd64" OR ARCH STREQUAL "AMD64")
+    set(ARCH "x86_64")
+elseif(ARCH STREQUAL "x86" OR ARCH STREQUAL "i386" OR ARCH STREQUAL "i686")
+    set(ARCH "x86")
+elseif(ARCH STREQUAL "aarch64" OR ARCH STREQUAL "arm64" OR ARCH STREQUAL "arm64e")
+    set(ARCH "aarch64")
+else()
+    message(FATAL_ERROR "Unknown processor; ${ARCH}")
+endif()
+
+if(WIN32)
+    set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/windows-${ARCH}")
+    set(ODIN_SDK_LIB "odin.dll")
+elseif(APPLE)
+    set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/macos-${ARCH}")
+    set(ODIN_SDK_LIB "libodin.dylib")
+elseif(UNIX AND NOT APPLE)
+    set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/linux-${ARCH}")
+    set(ODIN_SDK_LIB "libodin.so")
+else()
+    message(FATAL_ERROR "Unknown platform; only Windows, macOS and Linux are supported")
 endif()
 
 include_directories("${CMAKE_SOURCE_DIR}/../include" ${MINIAUDIO_DIR})
