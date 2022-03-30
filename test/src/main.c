@@ -16,10 +16,10 @@
 #define DEFAULT_ROOM_ID "default"
 #define DEFAULT_GW_ADDR "https://gateway.odin.4players.io"
 
-OdinRoom*        room;
-OdinMediaStream* input_stream;
-OdinMediaStream* output_streams[512];
-size_t           output_streams_len = 0;
+OdinRoomHandle        room;
+OdinMediaStreamHandle input_stream;
+OdinMediaStreamHandle output_streams[512];
+size_t                output_streams_len = 0;
 
 /**
  * @brief Custom struct used to send data over the network in this example.
@@ -49,7 +49,7 @@ void print_error(OdinReturnCode error, const char* text)
  *
  * @param stream    ODIN media stream to insert
  */
-void insert_output_stream(OdinMediaStream* stream)
+void insert_output_stream(OdinMediaStreamHandle stream)
 {
     output_streams[output_streams_len] = stream;
     output_streams_len += 1;
@@ -62,21 +62,21 @@ void insert_output_stream(OdinMediaStream* stream)
  */
 void remove_output_stream(size_t index)
 {
-    OdinMediaStream *removed_stream = output_streams[index];
+    OdinMediaStreamHandle removed_stream = output_streams[index];
     output_streams_len -= 1;
     output_streams[index] = output_streams[output_streams_len];
-    output_streams[output_streams_len] = NULL;
+    output_streams[output_streams_len] = 0;
     odin_media_stream_destroy(removed_stream);
 }
 
 /**
  * @brief Handler for ODIN room event callbacks
  *
- * @param room     Pointer to ODIN room that triggered the event
+ * @param room     Handle identifier of the ODIN room that triggered the event
  * @param event    Pointer to ODIN event the be handled
  * @param data     Extra data pointer passed into `odin_room_set_event_callback`
  */
-void handle_odin_event(OdinRoom* room, const OdinEvent* event, void* data)
+void handle_odin_event(OdinRoomHandle room, const OdinEvent* event, void* data)
 {
     if (event->tag == OdinEvent_RoomConnectionStateChanged) {
         printf("Connection state changed to %d due to reason %d\n", event->room_connection_state_changed.state, event->room_connection_state_changed.reason);
@@ -178,7 +178,7 @@ int main(int argc, char* argv[])
      * ===== IMPORTANT =====
      * Your access key is the unique authentication key to be used to generate room tokens for accessing the ODIN
      * server network. Think of it as your individual username and password combination all wrapped up into a single
-     * non-comprehendable string of characters, and treat it with the same respect. For your own security, we strongly
+     * non-comprehendible string of characters, and treat it with the same respect. For your own security, we strongly
      * recommend that you NEVER put an access key in your client-side code.
      */
     if (argc > 2) {
@@ -249,12 +249,12 @@ int main(int argc, char* argv[])
      * Configure audio processing options for the room
      */
     OdinApmConfig apm_config = {
-        .vad_enable              = true,
-        .echo_canceller          = true,
-        .high_pass_filter        = false,
-        .pre_amplifier           = false,
-        .noise_suppression_level = OdinNoiseSuppsressionLevel_Moderate,
-        .transient_suppressor    = false,
+        .voice_activity_detection = true,
+        .echo_canceller           = true,
+        .high_pass_filter         = false,
+        .pre_amplifier            = false,
+        .noise_suppression_level  = OdinNoiseSuppressionLevel_Moderate,
+        .transient_suppressor     = false,
     };
     error = odin_room_configure_apm(room, apm_config);
     if (odin_is_error(error)) {
