@@ -6,7 +6,7 @@ ODIN is a cross-platform software development kit (SDK) that enables developers 
 
 **:warning: Important Notice:**
 
-> Please note that ODIN is currently in **Beta** and features are being added over time. We are currently accepting a limited amount of games into our [Early Bird](https://www.4players.io/odin-application/) program as we continue to improve the service and server capacity.
+> Please note that ODIN is currently in **Beta** and features are being added over time.
 
 ## Supported Platforms
 
@@ -23,6 +23,21 @@ The current release of ODIN is shipped with native pre-compiled binaries for the
 Support for gaming consoles is planned for early 2022 and will cover Microsoft Xbox, Sony PlayStation 4/5 and Nintendo Switch.
 
 If your project requires support for any additional platform, please [contact us](https://www.4players.io/contact-us/).
+
+## Getting Started
+
+To check out the SDK for development, clone the git repo into a working directory of your choice.
+
+This repository uses [LFS](https://git-lfs.github.com) (large file storage) to manage pre-compiled binaries. Note that a standard clone of the repository might only retrieve the metadata about these files managed with LFS. In order to retrieve the actual data with LFS, please follow these steps:
+
+1. Clone the repository:  
+   `git clone https://github.com/4Players/odin-sdk.git`
+
+2. Cache the actual LFS data on your local machine:  
+   `git lfs fetch`
+
+3. Replaces the metadata in the binary files with their actual contents:  
+   `git lfs checkout`
 
 ## Testing
 
