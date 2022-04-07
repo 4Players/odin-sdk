@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "0.6.1"
+#define ODIN_VERSION "0.6.2"
 
 /**
  * Supported channel layouts in audio functions.
@@ -495,9 +495,7 @@ OdinRoomHandle odin_room_create(void);
 OdinReturnCode odin_room_destroy(OdinRoomHandle room);
 
 /**
- * Sets the event callback on the the specified `OdinRoomHandle`. Note that when a callback has
- * already been set previously, this will call the new callback with new medias and all previously
- * received medias will be dropped and stop receiving any data. Generally this should be called
+ * Sets the event callback on the the specified `OdinRoomHandle`. Generally this should be called
  * _once_ before joining a room.
  */
 OdinReturnCode odin_room_set_event_callback(OdinRoomHandle room,
