@@ -45,6 +45,40 @@ void print_error(OdinReturnCode error, const char* text)
 }
 
 /**
+ * @brief Reads an ODIN access key from the specified file
+ *
+ * @param file_name     Name of the file to read
+ * @param access_key    Buffer to store access key
+ */
+int read_access_key_file(const char *file_name, char *access_key) {
+    FILE *file;
+    if (NULL == (file = fopen(file_name, "r"))) {
+        return -1;
+    }
+    fgets(access_key, 128, file);
+    int error = ferror(file);
+    fclose(file);
+    return error;
+}
+
+/**
+ * @brief Writes an ODIN access key to the specified file
+ *
+ * @param file_name     Name of the file to write
+ * @param access_key    The access key to write
+ */
+int write_access_key_file(const char *file_name, const char* access_key) {
+    FILE *file;
+    if (NULL == (file = fopen(file_name, "w"))) {
+        return -1;
+    }
+    fputs(access_key, file);
+    int error = ferror(file);
+    fclose(file);
+    return error;
+}
+
+/**
  * @brief Adds a media stream to the global list of output streams
  *
  * @param stream    ODIN media stream to insert
@@ -184,9 +218,12 @@ int main(int argc, char* argv[])
     if (argc > 2) {
         access_key = argv[2];
     } else {
-        odin_access_key_generate(gen_access_key, sizeof(gen_access_key));
+        if (0 != read_access_key_file("odin_access_key", gen_access_key)) {
+            odin_access_key_generate(gen_access_key, sizeof(gen_access_key));
+            write_access_key_file("odin_access_key", gen_access_key);
+        }
         access_key = gen_access_key;
-        printf("Generated new access key '%s' for testing\n", access_key);
+        printf("Using access key '%s' for testing\n", access_key);
     }
 
     /*
@@ -249,12 +286,17 @@ int main(int argc, char* argv[])
      * Configure audio processing options for the room
      */
     OdinApmConfig apm_config = {
-        .voice_activity_detection = true,
-        .echo_canceller           = true,
-        .high_pass_filter         = false,
-        .pre_amplifier            = false,
-        .noise_suppression_level  = OdinNoiseSuppressionLevel_Moderate,
-        .transient_suppressor     = false,
+        .voice_activity_detection                     = true,
+        .voice_activity_detection_attack_probability  = 0.9,
+        .voice_activity_detection_release_probability = 0.8,
+        .volume_gate                                  = true,
+        .volume_gate_attack_loudness                  = -30,
+        .volume_gate_release_loudness                 = -40,
+        .echo_canceller                               = true,
+        .high_pass_filter                             = false,
+        .pre_amplifier                                = false,
+        .noise_suppression_level                      = OdinNoiseSuppressionLevel_Moderate,
+        .transient_suppressor                         = false,
     };
     error = odin_room_configure_apm(room, apm_config);
     if (odin_is_error(error)) {
