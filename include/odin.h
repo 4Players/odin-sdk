@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "0.6.2"
+#define ODIN_VERSION "0.7.0"
 
 /**
  * Supported channel layouts in audio functions.
@@ -90,7 +90,7 @@ typedef enum OdinRoomConnectionState {
 } OdinRoomConnectionState;
 
 /**
- * Posible reasons for connection state changes of an ODIN room.
+ * Possible reasons for connection state changes of an ODIN room.
  */
 typedef enum OdinRoomConnectionStateChangeReason {
     /**
@@ -389,9 +389,29 @@ typedef struct OdinEvent {
  */
 typedef struct OdinApmConfig {
     /**
-     * Enables or disables voice activity detection
+     * Enables or disables voice activity detection (VAD)
      */
     bool voice_activity_detection;
+    /**
+     * Voice probability value when the VAD should engage
+     */
+    float voice_activity_detection_attack_probability;
+    /**
+     * Voice probability value when the VAD should disengage
+     */
+    float voice_activity_detection_release_probability;
+    /**
+     * Enables or disables voice activity detection (VAD)
+     */
+    bool volume_gate;
+    /**
+     * Root mean square power (dBFS) when the volume gate should engage
+     */
+    float volume_gate_attack_loudness;
+    /**
+     * Root mean square power (dBFS) when the volume gate should disengage
+     */
+    float volume_gate_release_loudness;
     /**
      * Enable or disable echo cancellation
      */
