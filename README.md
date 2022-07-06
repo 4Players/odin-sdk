@@ -2,11 +2,7 @@
 
 ODIN is a cross-platform software development kit (SDK) that enables developers to integrate real-time chat technology into multiplayer games, apps and websites.
 
-[Online Documentation](https://developers.4players.io/odin)
-
-**:warning: Important Notice:**
-
-> Please note that ODIN is currently in **Beta** and features are being added over time.
+[Online Documentation](https://www.4players.io/developers/)
 
 ## Supported Platforms
 
@@ -22,7 +18,7 @@ The current release of ODIN is shipped with native pre-compiled binaries for the
 
 Support for gaming consoles is planned for early 2022 and will cover Microsoft Xbox, Sony PlayStation 4/5 and Nintendo Switch.
 
-If your project requires support for any additional platform, please [contact us](https://www.4players.io/contact-us/).
+If your project requires support for any additional platform, please [contact us](https://www.4players.io/company/contact_us/).
 
 ## Getting Started
 
