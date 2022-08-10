@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.0.0"
+#define ODIN_VERSION "1.0.1"
 
 /**
  * Supported channel layouts in audio functions.
