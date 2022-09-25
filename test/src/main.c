@@ -172,17 +172,19 @@ void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
         /*
          * Handle connection timeout and reconnect as we need to create a new input stream
          */
-        if (event->room_connection_state_changed.reason == OdinRoomConnectionStateChangeReason_ConnectionLost) {
+        if (event->room_connection_state_changed.reason == OdinRoomConnectionStateChangeReason_ConnectionLost)
+        {
             input_stream = 0;
-            if (event->room_connection_state_changed.state == OdinRoomConnectionState_Connected) {
-                OdinAudioStreamConfig audio_config = { .sample_rate = 48000, .channel_count = 1 };
+            if (event->room_connection_state_changed.state == OdinRoomConnectionState_Connected)
+            {
+                OdinAudioStreamConfig audio_config = {.sample_rate = 48000, .channel_count = 1};
                 input_stream = odin_audio_stream_create(audio_config);
                 odin_room_add_media(room, input_stream);
             }
         }
 
-        const char* connection_state_name = get_name_from_connection_state(event->room_connection_state_changed.state);
-        const char* connection_state_reason = get_name_from_connection_state_change_reason(event->room_connection_state_changed.reason);
+        const char *connection_state_name = get_name_from_connection_state(event->room_connection_state_changed.state);
+        const char *connection_state_reason = get_name_from_connection_state_change_reason(event->room_connection_state_changed.reason);
         printf("Connection state changed to '%s' due to %s\n", connection_state_name, connection_state_reason);
     }
     else if (event->tag == OdinEvent_Joined)
@@ -381,6 +383,16 @@ int main(int argc, char *argv[])
     }
 
     /*
+     * Set some initial user data for our peer using JSON
+     */
+    char *user_data = "{\"name\":\"Console Client\"}";
+    error = odin_room_update_user_data(room, OdinUserDataTarget_Peer, (uint8_t *)user_data, strlen(user_data));
+    if (odin_is_error(error))
+    {
+        print_error(error, "Failed to set user data");
+    }
+
+    /*
      * Establish a connection to the ODIN network and join the specified room without custom user data
      */
     printf("Joining room '%s' using '%s'\n", room_id, gateway_url);
@@ -398,7 +410,7 @@ int main(int argc, char *argv[])
         .voice_activity_detection = true,
         .voice_activity_detection_attack_probability = 0.9,
         .voice_activity_detection_release_probability = 0.8,
-        .volume_gate = true,
+        .volume_gate = false,
         .volume_gate_attack_loudness = -30,
         .volume_gate_release_loudness = -40,
         .echo_canceller = true,
@@ -406,6 +418,7 @@ int main(int argc, char *argv[])
         .pre_amplifier = false,
         .noise_suppression_level = OdinNoiseSuppressionLevel_Moderate,
         .transient_suppressor = false,
+        .gain_controller = true,
     };
     error = odin_room_configure_apm(room, apm_config);
     if (odin_is_error(error))
@@ -424,7 +437,7 @@ int main(int argc, char *argv[])
     input_stream = odin_audio_stream_create(audio_config);
 
     /*
-     * Add input audio stream to room which is effetively enabling the microphone input
+     * Add input audio stream to room which is effectively enabling the microphone input
      */
     error = odin_room_add_media(room, input_stream);
     if (odin_is_error(error))
