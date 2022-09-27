@@ -16,7 +16,7 @@ The current release of ODIN is shipped with native pre-compiled binaries for the
 | Android  | :white_check_mark: | :white_check_mark: |
 | iOS      | :white_check_mark: | :white_check_mark: |
 
-Support for gaming consoles is planned for early 2022 and will cover Microsoft Xbox, Sony PlayStation 4/5 and Nintendo Switch.
+Support for gaming consoles is planned for early 2023 and will cover Microsoft Xbox, Sony PlayStation 4/5 and Nintendo Switch.
 
 If your project requires support for any additional platform, please [contact us](https://www.4players.io/company/contact_us/).
 
