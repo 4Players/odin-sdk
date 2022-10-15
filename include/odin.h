@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.1.1"
+#define ODIN_VERSION "1.2.0"
 
 /**
  * Supported channel layouts in audio functions.
@@ -83,6 +83,10 @@ typedef enum OdinRoomConnectionState {
      * Connection is established
      */
     OdinRoomConnectionState_Connected,
+    /**
+     * Connection is being closed
+     */
+    OdinRoomConnectionState_Disconnecting,
     /**
      * Connection is closed
      */
@@ -241,6 +245,14 @@ typedef struct OdinEvent_JoinedData {
      * Own peer ID assigned by the server
      */
     uint64_t own_peer_id;
+    /**
+     * Own user identifier of the peer specified during authentication (null-terminated)
+     */
+    const char *own_user_id;
+    /**
+     * Length of the own user identifier
+     */
+    size_t own_user_id_len;
 } OdinEvent_JoinedData;
 
 typedef struct OdinEvent_PeerJoinedData {

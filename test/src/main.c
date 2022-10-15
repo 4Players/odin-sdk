@@ -66,12 +66,14 @@ const char *get_name_from_connection_state(OdinRoomConnectionState state)
 {
     switch (state)
     {
-    case OdinRoomConnectionState_Disconnected:
-        return "disconnected";
     case OdinRoomConnectionState_Connecting:
         return "connecting";
     case OdinRoomConnectionState_Connected:
         return "connected";
+    case OdinRoomConnectionState_Disconnecting:
+        return "disconnecting";
+    case OdinRoomConnectionState_Disconnected:
+        return "disconnected";
     default:
         return "unknown";
     }
@@ -186,10 +188,15 @@ void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
         const char *connection_state_name = get_name_from_connection_state(event->room_connection_state_changed.state);
         const char *connection_state_reason = get_name_from_connection_state_change_reason(event->room_connection_state_changed.reason);
         printf("Connection state changed to '%s' due to %s\n", connection_state_name, connection_state_reason);
+
+        if (event->room_connection_state_changed.reason == OdinRoomConnectionStateChangeReason_ServerRequested)
+        {
+            exit(1);
+        }
     }
     else if (event->tag == OdinEvent_Joined)
     {
-        printf("Room '%s' owned by '%s' joined successfully as Peer(%" PRIu64 ")\n", event->joined.room_id, event->joined.customer, event->joined.own_peer_id);
+        printf("Room '%s' owned by '%s' joined successfully as Peer(%" PRIu64 ") with user ID '%s'\n", event->joined.room_id, event->joined.customer, event->joined.own_peer_id, event->joined.own_user_id);
     }
     else if (event->tag == OdinEvent_PeerJoined)
     {
@@ -393,7 +400,7 @@ int main(int argc, char *argv[])
     }
 
     /*
-     * Establish a connection to the ODIN network and join the specified room without custom user data
+     * Establish a connection to the ODIN network and join the specified room
      */
     printf("Joining room '%s' using '%s'\n", room_id, gateway_url);
     error = odin_room_join(room, gateway_url, room_token);
