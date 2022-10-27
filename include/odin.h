@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.2.1"
+#define ODIN_VERSION "1.2.2"
 
 /**
  * Supported channel layouts in audio functions.
@@ -391,6 +391,48 @@ typedef struct OdinEvent {
 } OdinEvent;
 
 /**
+ * Statistics for the underlying connection of a room.
+ */
+typedef struct OdinConnectionStats {
+    /**
+     * The amount of outgoing UDP datagrams observed
+     */
+    uint64_t udp_tx_datagrams;
+    /**
+     * The amount of outgoing acknowledgement frames observed
+     */
+    uint64_t udp_tx_acks;
+    /**
+     * The total amount of bytes which have been transferred inside outgoing UDP datagrams
+     */
+    uint64_t udp_tx_bytes;
+    /**
+     * The amount of incoming UDP datagrams observed
+     */
+    uint64_t udp_rx_datagrams;
+    /**
+     * The amount of incoming acknowledgement frames observed
+     */
+    uint64_t udp_rx_acks;
+    /**
+     * The total amount of bytes which have been transferred inside incoming UDP datagrams
+     */
+    uint64_t udp_rx_bytes;
+    /**
+     * Current congestion window of the connection
+     */
+    uint64_t cwnd;
+    /**
+     * Congestion events on the connection
+     */
+    uint64_t congestion_events;
+    /**
+     * Current best estimate of the connection latency (round-trip-time) in milliseconds
+     */
+    float rtt;
+} OdinConnectionStats;
+
+/**
  * Per-room configuration of the ODIN audio processing module which provides a variety of smart
  * enhancement algorithms.
  */
@@ -458,6 +500,28 @@ typedef struct OdinAudioStreamConfig {
      */
     uint8_t channel_count;
 } OdinAudioStreamConfig;
+
+/**
+ * Audio stream statistics.
+ */
+typedef struct OdinAudioStreamStats {
+    /**
+     * The number of packets processed by the medias jitter buffer.
+     */
+    uint32_t jitter_packets_processed;
+    /**
+     * The number of packets dropped because they seemed to arrive too early.
+     */
+    uint32_t jitter_packets_dropped_too_early;
+    /**
+     * The number of packets processed because they seemed to arrive too late.
+     */
+    uint32_t jitter_packets_dropped_too_late;
+    /**
+     * The number of packets marked as lost during transmission.
+     */
+    uint32_t jitter_packets_lost;
+} OdinAudioStreamStats;
 
 typedef size_t OdinResamplerHandle;
 
@@ -577,6 +641,11 @@ OdinReturnCode odin_room_customer(OdinRoomHandle room,
 OdinReturnCode odin_room_peer_id(OdinRoomHandle room, uint64_t *out_peer_id);
 
 /**
+ * Retrieves statistics for the underlying connection of the specified `OdinRoomHandle`.
+ */
+OdinReturnCode odin_room_connection_stats(OdinRoomHandle room, struct OdinConnectionStats *stats);
+
+/**
  * Updates the custom user data for either your own peer or the specified `OdinRoomHandle` itself.
  * All user data is synced automatically, which allows storing of arbitrary information for each
  * individual peer and even globally for the room if needed.
@@ -680,6 +749,13 @@ OdinReturnCode odin_audio_read_data(OdinMediaStreamHandle stream,
                                     enum OdinChannelLayout out_channel_layout);
 
 /**
+ * Retrieves statistics for the specified `OdinMediaStreamHandle`.
+ *
+ * Note: This will only work for output streams.
+ */
+OdinReturnCode odin_audio_stats(OdinMediaStreamHandle stream, struct OdinAudioStreamStats *stats);
+
+/**
  * Reads up to `out_buffer_len` samples from the given streams and mixes them into the `out_buffer`.
  * All audio streams will be read based on a 48khz sample rate so make sure to allocate the buffer
  * accordingly. After the call the `out_buffer_len` will contain the amount of samples that have
@@ -721,7 +797,7 @@ OdinResamplerHandle odin_resampler_create(uint32_t from_rate,
 /**
  * Resamples a single chunk of audio. If the ODIN resampler instance was created with multiple
  * channels, the data is assumed to be interleaved. The `output_capacity` argument also serves as
- * an out parameter when the provided capacity wasn't enough to fullfil the resample request, in
+ * an out parameter when the provided capacity wasn't enough to fulfill the resample request, in
  * which case this function will write the minimum required buffer size into the given variable.
  * On success, the written size for the processed sample is returned in both, the return value
  * and the `output_capacity` out parameter.
