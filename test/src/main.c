@@ -14,7 +14,7 @@
 #include "odin.h"
 
 #define DEFAULT_ROOM_ID "default"
-#define DEFAULT_GW_ADDR "https://gateway.odin.4players.io"
+#define DEFAULT_GW_ADDR "gateway.odin.4players.io"
 
 OdinRoomHandle room;
 OdinMediaStreamHandle input_stream;

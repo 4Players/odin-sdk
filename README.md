@@ -8,13 +8,13 @@ ODIN is a cross-platform software development kit (SDK) that enables developers 
 
 The current release of ODIN is shipped with native pre-compiled binaries for the following platforms:
 
-| Platform | x86_64             | aarch64            |
-| -------- | ------------------ | ------------------ |
-| Windows  | :white_check_mark: |                    |
-| macOS    | :white_check_mark: | :white_check_mark: |
-| Linux    | :white_check_mark: | :white_check_mark: |
-| Android  | :white_check_mark: | :white_check_mark: |
-| iOS      | :white_check_mark: | :white_check_mark: |
+| Platform | x86                | x86_64             | aarch64            |
+|----------|--------------------|--------------------|--------------------|
+| Windows  | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| Linux    | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| macOS    |                    | :white_check_mark: | :white_check_mark: |
+| Android  |                    | :white_check_mark: | :white_check_mark: |
+| iOS      |                    | :white_check_mark: | :white_check_mark: |
 
 Support for gaming consoles is planned for early 2023 and will cover Microsoft Xbox, Sony PlayStation 4/5 and Nintendo Switch.
 

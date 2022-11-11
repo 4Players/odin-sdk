@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.2.2"
+#define ODIN_VERSION "1.3.0"
 
 /**
  * Supported channel layouts in audio functions.
@@ -506,21 +506,37 @@ typedef struct OdinAudioStreamConfig {
  */
 typedef struct OdinAudioStreamStats {
     /**
+     * The total number of packets seen by the medias jitter buffer.
+     */
+    uint32_t packets_total;
+    /**
      * The number of packets processed by the medias jitter buffer.
      */
-    uint32_t jitter_packets_processed;
+    uint32_t packets_processed;
     /**
      * The number of packets dropped because they seemed to arrive too early.
      */
-    uint32_t jitter_packets_dropped_too_early;
+    uint32_t packets_arrived_too_early;
     /**
-     * The number of packets processed because they seemed to arrive too late.
+     * The number of packets dropped because they seemed to arrive too late.
      */
-    uint32_t jitter_packets_dropped_too_late;
+    uint32_t packets_arrived_too_late;
+    /**
+     * The number of packets dropped due to a jitter buffer reset.
+     */
+    uint32_t packets_dropped;
+    /**
+     * The number of packets marked as invalid.
+     */
+    uint32_t packets_invalid;
+    /**
+     * The number of packets marked as duplicates.
+     */
+    uint32_t packets_repeated;
     /**
      * The number of packets marked as lost during transmission.
      */
-    uint32_t jitter_packets_lost;
+    uint32_t packets_lost;
 } OdinAudioStreamStats;
 
 typedef size_t OdinResamplerHandle;
@@ -731,11 +747,6 @@ enum OdinMediaStreamType odin_media_stream_type(OdinMediaStreamHandle stream);
  * Sends data to the audio stream. The data has to be interleaved [-1, 1] float data.
  */
 OdinReturnCode odin_audio_push_data(OdinMediaStreamHandle stream, const float *buf, size_t buf_len);
-
-/**
- * Returns the number of samples available in the audio buffer of a `OdinMediaStreamHandle`.
- */
-OdinReturnCode odin_audio_data_len(OdinMediaStreamHandle stream);
 
 /**
  * Reads audio data from the specified `OdinMediaStreamHandle`. This will return audio data in
