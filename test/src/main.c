@@ -287,14 +287,39 @@ void handle_audio_data(ma_device *device, void *output, const void *input, ma_ui
     }
     else if (device->type == ma_device_type_playback)
     {
-        /*
-         * Keep things simple and fill the miniaudio output buffer with mixed data from available ODIN output streams
-         */
-        size_t samples_read = frame_count;
-        int error = odin_audio_mix_streams(room, output_streams, output_streams_len, output, &samples_read, OdinChannelLayout_Mono);
-        if (odin_is_error(error))
+        if (true /* wether or not to handle invidual streams */)
         {
-            print_error(error, "Failed to read mixed audio data");
+            /**
+             * Walk through list of ODIN output streams to read and mix their data into the miniaudio output buffer
+             */
+            float *samples = malloc(frame_count * sizeof(float));
+            for (size_t i = 0; i < output_streams_len; i++)
+            {
+
+                int error = odin_audio_read_data(output_streams[i], samples, frame_count, OdinChannelLayout_Mono);
+                if (odin_is_error(error))
+                {
+                    print_error(error, "Failed to read audio data from media handle");
+                }
+                for (size_t i = 0; i < frame_count; ++i)
+                {
+                    ((float *)output)[i] += samples[i];
+                }
+            }
+            odin_audio_process_reverse(room, (float *)output, frame_count, OdinChannelLayout_Mono);
+            free(samples);
+        }
+        else
+        {
+            /*
+             * Keep things simple and fill the miniaudio output buffer with mixed data from available ODIN output streams
+             */
+            size_t samples_read = frame_count;
+            int error = odin_audio_mix_streams(room, output_streams, output_streams_len, output, &samples_read, OdinChannelLayout_Mono);
+            if (odin_is_error(error))
+            {
+                print_error(error, "Failed to read mixed audio data");
+            }
         }
     }
 }
