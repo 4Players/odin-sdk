@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.3.1-beta.7"
+#define ODIN_VERSION "1.3.1"
 
 /**
  * Supported channel layouts in audio functions.
@@ -620,7 +620,9 @@ OdinReturnCode odin_room_destroy(OdinRoomHandle room);
  * _once_ before joining a room.
  */
 OdinReturnCode odin_room_set_event_callback(OdinRoomHandle room,
-                                            void (*callback)(OdinRoomHandle room, const struct OdinEvent *event, void *extra_data),
+                                            void (*callback)(OdinRoomHandle room,
+                                                             const struct OdinEvent *event,
+                                                             void *extra_data),
                                             void *extra_data);
 
 /**
