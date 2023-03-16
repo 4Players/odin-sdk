@@ -279,7 +279,8 @@ void handle_audio_data(ma_device *device, void *output, const void *input, ma_ui
         /*
          * Push audio buffer from miniaudio callback to ODIN input stream
          */
-        int error = odin_audio_push_data(input_stream, input, frame_count);
+        int sample_count = frame_count * device->capture.channels;
+        int error = odin_audio_push_data(input_stream, input, sample_count);
         if (odin_is_error(error))
         {
             print_error(error, "Failed to push audio data");
@@ -287,40 +288,25 @@ void handle_audio_data(ma_device *device, void *output, const void *input, ma_ui
     }
     else if (device->type == ma_device_type_playback)
     {
-        if (true /* wether or not to handle invidual streams */)
+        /**
+         * Walk through list of ODIN output streams to read and mix their data into the miniaudio output buffer
+         */
+        int sample_count = frame_count * device->playback.channels;
+        float *samples = malloc(sample_count * sizeof(float));
+        for (size_t i = 0; i < output_streams_len; i++)
         {
-            /**
-             * Walk through list of ODIN output streams to read and mix their data into the miniaudio output buffer
-             */
-            float *samples = malloc(frame_count * sizeof(float));
-            for (size_t i = 0; i < output_streams_len; i++)
-            {
-
-                int error = odin_audio_read_data(output_streams[i], samples, frame_count, OdinChannelLayout_Mono);
-                if (odin_is_error(error))
-                {
-                    print_error(error, "Failed to read audio data from media handle");
-                }
-                for (size_t i = 0; i < frame_count; ++i)
-                {
-                    ((float *)output)[i] += samples[i];
-                }
-            }
-            odin_audio_process_reverse(room, (float *)output, frame_count, OdinChannelLayout_Mono);
-            free(samples);
-        }
-        else
-        {
-            /*
-             * Keep things simple and fill the miniaudio output buffer with mixed data from available ODIN output streams
-             */
-            size_t samples_read = frame_count;
-            int error = odin_audio_mix_streams(room, output_streams, output_streams_len, output, &samples_read, OdinChannelLayout_Mono);
+            int error = odin_audio_read_data(output_streams[i], samples, sample_count);
             if (odin_is_error(error))
             {
-                print_error(error, "Failed to read mixed audio data");
+                print_error(error, "Failed to read audio data from media handle");
+            }
+            for (size_t i = 0; i < sample_count; ++i)
+            {
+                ((float *)output)[i] += samples[i];
             }
         }
+        odin_audio_process_reverse(room, (float *)output, frame_count);
+        free(samples);
     }
 }
 
@@ -370,10 +356,10 @@ int main(int argc, char *argv[])
     gateway_url = (argc > 3) ? argv[3] : DEFAULT_GW_ADDR;
 
     /*
-     * Initialize the ODIN runtime
+     * Initialize the ODIN runtime with a custom audio output format (48 kHz stereo)
      */
     printf("Initializing ODIN runtime %s\n", ODIN_VERSION);
-    odin_startup(ODIN_VERSION);
+    odin_startup_ex(ODIN_VERSION, 48000, OdinChannelLayout_Stereo);
 
     /*
      * Spawn a new token generator using the specified access key
@@ -388,7 +374,12 @@ int main(int argc, char *argv[])
     /*
      * Generate a new room token to access the ODIN network
      */
-    error = odin_token_generator_create_token(generator, room_id, "My User ID", room_token, sizeof(room_token));
+    OdinTokenOptions token_options = {
+        .customer = "<NO_CUSTOMER>",
+        .audience = OdinTokenAudience_Gateway,
+        .lifetime = 300,
+    };
+    error = odin_token_generator_create_token_ex(generator, room_id, "My User ID", &token_options, room_token, sizeof(room_token));
     if (odin_is_error(error))
     {
         print_error(error, "Failed to generate room token");
@@ -502,7 +493,7 @@ int main(int argc, char *argv[])
      */
     ma_device_config output_config = ma_device_config_init(ma_device_type_playback);
     output_config.playback.format = ma_format_f32;
-    output_config.playback.channels = 1;
+    output_config.playback.channels = 2;
     output_config.sampleRate = 48000;
     output_config.dataCallback = handle_audio_data;
     ma_device_init(NULL, &output_config, &output_device);
