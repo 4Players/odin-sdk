@@ -10,9 +10,19 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.4.0"
+#define ODIN_VERSION "1.4.1"
 
-#define Frame_SAMPLE_RATE 48000
+#define JitterBuffer_ENTRY_LENGTH 1800
+
+#define JitterBuffer_MAX_SILENCE_IN_SPURT 18000
+
+#define JitterBuffer_MAX_CACHE_ENTRIES 100
+
+#define JitterBuffer_BASE_JITTER 3600
+
+#define JitterBuffer_RTT_TO_JITTER_FACTOR 0.1
+
+#define Block_SAMPLE_RATE 48000
 
 /**
  * Supported channel layouts in audio functions.
