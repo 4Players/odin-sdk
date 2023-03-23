@@ -11,30 +11,11 @@ include(FetchContent)
 FetchContent_Declare(
     miniaudio
     GIT_REPOSITORY https://github.com/mackron/miniaudio.git
-    GIT_TAG        8686f52e6625e562f4756b946696692c016324ab # version 0.10.43
+    GIT_TAG        fb9c18c70514aad992e6781b79f7fc43709b1613 # version 0.11.13
     DOWNLOAD_DIR   ${MINIAUDIO_DIR}
     SOURCE_DIR     ${MINIAUDIO_DIR}
 )
 FetchContent_MakeAvailable(miniaudio)
-
-if(WIN32)
-    set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/windows-x86_64")
-    set(ODIN_SDK_LIB "odin.dll")
-endif()
-
-if(APPLE)
-    if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "arm64")
-        set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/macos-aarch64")
-    else()
-        set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/macos-x86_64")
-    endif()
-    set(ODIN_SDK_LIB "libodin.dylib")
-endif()
-
-if(UNIX AND NOT APPLE)
-    set(ODIN_SDK_DIR "${CMAKE_SOURCE_DIR}/../bin/linux-x86_64")
-    set(ODIN_SDK_LIB "libodin.so")
-endif()
 
 set(ARCH ${CMAKE_SYSTEM_PROCESSOR})
 if(ARCH STREQUAL "x86_64" OR ARCH STREQUAL "amd64" OR ARCH STREQUAL "AMD64")
