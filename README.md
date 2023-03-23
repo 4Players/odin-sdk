@@ -1,6 +1,12 @@
+![ODIN](https://www.4players.io/images/odin/banner.jpg)
+
+[![Releases](https://img.shields.io/github/release/4Players/odin-sdk)](https://github.com/4Players/odin-sdk/releases)
+[![Documentation](https://img.shields.io/badge/docs-4Players.io-orange)](https://www.4players.io/developers/)
+[![Twitter](https://img.shields.io/badge/twitter-@ODIN4Players-blue)](https://twitter.com/ODIN4Players)
+
 # 4Players ODIN SDK
 
-ODIN is a cross-platform software development kit (SDK) that enables developers to integrate real-time chat technology into multiplayer games, apps and websites.
+ODIN is a cross-platform software development kit (SDK) that enables developers to integrate real-time chat technology into multiplayer games, apps and websites. Whether using a native app or your favorite web browser, ODIN makes it easy for you to stay connected with those who matter most.
 
 [Online Documentation](https://www.4players.io/developers/)
 
@@ -16,7 +22,7 @@ The current release of ODIN is shipped with native pre-compiled binaries for the
 | Android  |                    | :white_check_mark: | :white_check_mark: |
 | iOS      |                    | :white_check_mark: | :white_check_mark: |
 
-Support for gaming consoles is planned for early 2023 and will cover Microsoft Xbox, Sony PlayStation 4/5 and Nintendo Switch.
+Support for gaming consoles is available upon request and covers Microsoft Xbox, Sony PlayStation 4/5 and Nintendo Switch.
 
 If your project requires support for any additional platform, please [contact us](https://www.4players.io/company/contact_us/).
 
