@@ -22,6 +22,22 @@ OdinMediaStreamHandle output_streams[512];
 size_t output_streams_len = 0;
 
 /**
+ * @brief Audio input configuration.
+ */
+OdinAudioStreamConfig audio_input_config = {
+    .sample_rate = 48000,
+    .channel_count = 1,
+};
+
+/**
+ * @brief Audio output configuration.
+ */
+OdinAudioStreamConfig audio_output_config = {
+    .sample_rate = 48000,
+    .channel_count = 2,
+};
+
+/**
  * @brief Custom struct used to send data over the network in this example.
  * @note  Please keep in mind that padding and alignment of structs may differ between platforms so make sure to take care of
  *        packing accordingly to assure compatibility.
@@ -179,8 +195,7 @@ void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
             input_stream = 0;
             if (event->room_connection_state_changed.state == OdinRoomConnectionState_Connected)
             {
-                OdinAudioStreamConfig audio_config = {.sample_rate = 48000, .channel_count = 1};
-                input_stream = odin_audio_stream_create(audio_config);
+                input_stream = odin_audio_stream_create(audio_input_config);
                 odin_room_add_media(room, input_stream);
             }
         }
@@ -356,10 +371,10 @@ int main(int argc, char *argv[])
     gateway_url = (argc > 3) ? argv[3] : DEFAULT_GW_ADDR;
 
     /*
-     * Initialize the ODIN runtime with a custom audio output format (48 kHz stereo)
+     * Initialize the ODIN runtime based on the global output config
      */
     printf("Initializing ODIN runtime %s\n", ODIN_VERSION);
-    odin_startup_ex(ODIN_VERSION, 48000, OdinChannelLayout_Stereo);
+    odin_startup_ex(ODIN_VERSION, audio_output_config);
 
     /*
      * Spawn a new token generator using the specified access key
@@ -451,13 +466,9 @@ int main(int argc, char *argv[])
     }
 
     /*
-     * Create the input audio stream with a samplerate of 48 kHz
+     * Create the input audio stream based on the global input config
      */
-    OdinAudioStreamConfig audio_config = {
-        .sample_rate = 48000,
-        .channel_count = 1,
-    };
-    input_stream = odin_audio_stream_create(audio_config);
+    input_stream = odin_audio_stream_create(audio_input_config);
 
     /*
      * Add input audio stream to room which is effectively enabling the microphone input
@@ -474,8 +485,8 @@ int main(int argc, char *argv[])
      */
     ma_device_config input_config = ma_device_config_init(ma_device_type_capture);
     input_config.capture.format = ma_format_f32;
-    input_config.capture.channels = 1;
-    input_config.sampleRate = 48000;
+    input_config.capture.channels = audio_input_config.channel_count;
+    input_config.sampleRate = audio_input_config.sample_rate;
     input_config.dataCallback = handle_audio_data;
     ma_device_init(NULL, &input_config, &input_device);
     if (ma_device_start(&input_device) != MA_SUCCESS)
@@ -493,8 +504,8 @@ int main(int argc, char *argv[])
      */
     ma_device_config output_config = ma_device_config_init(ma_device_type_playback);
     output_config.playback.format = ma_format_f32;
-    output_config.playback.channels = 2;
-    output_config.sampleRate = 48000;
+    output_config.playback.channels = audio_output_config.channel_count;
+    output_config.sampleRate = audio_output_config.sample_rate;
     output_config.dataCallback = handle_audio_data;
     ma_device_init(NULL, &output_config, &output_device);
     if (ma_device_start(&output_device) != MA_SUCCESS)
