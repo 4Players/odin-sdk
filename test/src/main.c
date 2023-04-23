@@ -1,25 +1,54 @@
 /*
  * 4Players ODIN Minimal Client Example
  *
- * Usage: odin_minimal <room_id> <access_key> <gateway_url>
+ * Usage: odin_minimal -r <room_id> -s <server_url> -k <access_key>
  */
 
 #define MINIAUDIO_IMPLEMENTATION
 #define __STDC_FORMAT_MACROS
 
 #include <inttypes.h>
+#include <math.h>
 #include <stdio.h>
 
+#include "argparse.h"
 #include "miniaudio.h"
 #include "odin.h"
-
-#define DEFAULT_ROOM_ID "default"
-#define DEFAULT_GW_ADDR "gateway.odin.4players.io"
 
 OdinRoomHandle room;
 OdinMediaStreamHandle input_stream;
 OdinMediaStreamHandle output_streams[512];
 size_t output_streams_len = 0;
+
+/**
+ * @brief Default room to join if none is specified.
+ */
+char *room_id = "default";
+
+/**
+ * @brief Default gateway/server to connect to if none is specified.
+ */
+char *server_url = "gateway.odin.4players.io";
+
+/**
+ * @brief Initial arbitrary user data to set for our own peer when joining the room (can be changed afterwards).
+ */
+char *user_data = "{\"name\":\"Console Client\"}";
+
+/**
+ * @brief Default user ID to use during authentication (usually refers to an existing record in your particular service)
+ */
+char *user_id = "My User ID";
+
+/**
+ * @brief Default access key to use if none is specified (using `NULL` will auto-generate one).
+ */
+char *access_key = NULL;
+
+/**
+ * @brief Default room token to use if none is specified (using `NULL` will auto-generate one).
+ */
+char *room_token = NULL;
 
 /**
  * @brief Audio input configuration.
@@ -35,6 +64,24 @@ OdinAudioStreamConfig audio_input_config = {
 OdinAudioStreamConfig audio_output_config = {
     .sample_rate = 48000,
     .channel_count = 2,
+};
+
+/**
+ * @brief Room audio processing configuration.
+ */
+OdinApmConfig apm_config = {
+    .voice_activity_detection = true,
+    .voice_activity_detection_attack_probability = 0.9,
+    .voice_activity_detection_release_probability = 0.8,
+    .volume_gate = false,
+    .volume_gate_attack_loudness = -30,
+    .volume_gate_release_loudness = -40,
+    .echo_canceller = true,
+    .high_pass_filter = false,
+    .pre_amplifier = false,
+    .noise_suppression_level = OdinNoiseSuppressionLevel_Moderate,
+    .transient_suppressor = false,
+    .gain_controller = true,
 };
 
 /**
@@ -71,6 +118,18 @@ uint16_t get_media_id_from_handle(OdinMediaStreamHandle handle)
     uint16_t media_id;
     int error = odin_media_stream_media_id(handle, &media_id);
     return odin_is_error(error) ? 0 : media_id;
+}
+
+/**
+ * @brief Basic helper function to get the room ID from a specified handle
+ *
+ * @param handle    The room handle to get the ID from
+ */
+const char *get_room_id_from_handle(OdinRoomHandle handle)
+{
+    char room_id[512];
+    int error = odin_room_id(handle, room_id, sizeof(room_id));
+    return odin_is_error(error) ? NULL : strdup(room_id);
 }
 
 /**
@@ -154,6 +213,17 @@ int write_access_key_file(const char *file_name, const char *access_key)
 }
 
 /**
+ * @brief Explicitly enables/disables a given boolean or leaves it untouched.
+ *
+ * @param option    The option value to change
+ * @param action    What to do with the option (0 - disable, 1 - ignore, 2 - enable)
+ */
+void adjust_apm_option(bool *option, int action)
+{
+    *option = (action == 2) || (action == 1 && option);
+}
+
+/**
  * @brief Adds a media stream to the global list of output streams
  *
  * @param stream    ODIN media stream to insert
@@ -187,9 +257,13 @@ void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
 {
     if (event->tag == OdinEvent_RoomConnectionStateChanged)
     {
-        /*
-         * Handle connection timeout and reconnect as we need to create a new input stream
-         */
+        const char *connection_state_name = get_name_from_connection_state(event->room_connection_state_changed.state);
+        const char *connection_state_reason = get_name_from_connection_state_change_reason(event->room_connection_state_changed.reason);
+
+        // Print new room connection state to console
+        printf("Connection state changed to '%s' due to %s\n", connection_state_name, connection_state_reason);
+
+        // Handle connection timeouts and reconnects as we need to create a new input stream
         if (event->room_connection_state_changed.reason == OdinRoomConnectionStateChangeReason_ConnectionLost)
         {
             input_stream = 0;
@@ -200,10 +274,7 @@ void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
             }
         }
 
-        const char *connection_state_name = get_name_from_connection_state(event->room_connection_state_changed.state);
-        const char *connection_state_reason = get_name_from_connection_state_change_reason(event->room_connection_state_changed.reason);
-        printf("Connection state changed to '%s' due to %s\n", connection_state_name, connection_state_reason);
-
+        // Stop client if the room was closed by the server or we were kicked/banned
         if (event->room_connection_state_changed.reason == OdinRoomConnectionStateChangeReason_ServerRequested)
         {
             exit(1);
@@ -211,52 +282,69 @@ void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
     }
     else if (event->tag == OdinEvent_Joined)
     {
-        printf("Room '%s' owned by '%s' joined successfully as Peer(%" PRIu64 ") with user ID '%s'\n", event->joined.room_id, event->joined.customer, event->joined.own_peer_id, event->joined.own_user_id);
+        const char *room_id = event->joined.room_id;
+        const char *customer = event->joined.customer;
+        const char *own_user_id = event->joined.own_user_id;
+        uint64_t peer_id = event->joined.own_peer_id;
+
+        // Print information about joined room to the console
+        printf("Room '%s' owned by '%s' joined successfully as Peer(%" PRIu64 ") with user ID '%s'\n", room_id, customer, peer_id, own_user_id);
     }
     else if (event->tag == OdinEvent_PeerJoined)
     {
-        printf("Peer(%" PRIu64 ") joined with user ID '%s'\n", event->peer_joined.peer_id, event->peer_joined.user_id);
+        const char *user_id = event->peer_joined.user_id;
+        uint64_t peer_id = event->peer_joined.peer_id;
+        size_t peer_user_data_len = event->peer_joined.peer_user_data_len;
+
+        // Print information about the peer to the console
+        printf("Peer(%" PRIu64 ") joined with user ID '%s'\n", peer_id, user_id);
+
+        // Print information about the peers user data to the console
+        printf("Peer(%" PRIu64 ") has user data with %zu bytes\n", peer_id, peer_user_data_len);
     }
     else if (event->tag == OdinEvent_PeerLeft)
     {
-        /*
-         * Walk through our global list of output streams and destroy the ones owned by the peer
-         */
+        uint64_t peer_id = event->peer_left.peer_id;
+
+        // Walk through our global list of output streams and destroy the remaining ones owned by the peer just to be sure
         for (size_t i = 0; i < output_streams_len; ++i)
         {
             uint64_t stream_peer_id;
             odin_media_stream_peer_id(output_streams[i], &stream_peer_id);
-            if (stream_peer_id == event->peer_left.peer_id)
+            if (stream_peer_id == peer_id)
             {
                 remove_output_stream(i);
             }
         }
 
-        printf("Peer(%" PRIu64 ") left\n", event->peer_left.peer_id);
+        // Print information about the peer to the console
+        printf("Peer(%" PRIu64 ") left\n", peer_id);
     }
     else if (event->tag == OdinEvent_PeerUserDataChanged)
     {
-        printf("Peer(%" PRIu64 ") user data updated with %zu bytes\n", event->peer_user_data_changed.peer_id, event->peer_user_data_changed.peer_user_data_len);
-    }
-    else if (event->tag == OdinEvent_RoomUserDataChanged)
-    {
-        printf("Room user data updated with %zu bytes\n", event->room_user_data_changed.room_user_data_len);
+        uint64_t peer_id = event->peer_user_data_changed.peer_id;
+        size_t peer_user_data_len = event->peer_user_data_changed.peer_user_data_len;
+
+        // Print information about the peers user data to the console
+        printf("Peer(%" PRIu64 ") user data updated with %zu bytes\n", peer_id, peer_user_data_len);
     }
     else if (event->tag == OdinEvent_MediaAdded)
     {
-        /*
-         * Add the new output stream to our global list for later playback mixing
-         */
+        uint64_t peer_id = event->media_added.peer_id;
+        uint16_t media_id = get_media_id_from_handle(event->media_added.media_handle);
+
+        // Add the new output stream to our global list for later playback mixing
         insert_output_stream(event->media_added.media_handle);
 
-        uint16_t media_id = get_media_id_from_handle(event->media_added.media_handle);
-        printf("Media(%d) added by Peer(%" PRIu64 ")\n", media_id, event->media_added.peer_id);
+        // Print information about the media to the console
+        printf("Media(%d) added by Peer(%" PRIu64 ")\n", media_id, peer_id);
     }
     else if (event->tag == OdinEvent_MediaRemoved)
     {
-        /*
-         * Find the output stream in our global list and destroy it
-         */
+        uint64_t peer_id = event->media_removed.peer_id;
+        uint16_t media_id = get_media_id_from_handle(event->media_removed.media_handle);
+
+        // Find the output stream in our global list and destroy it
         for (size_t i = 0; i < output_streams_len; ++i)
         {
             if (output_streams[i] == event->media_removed.media_handle)
@@ -266,16 +354,25 @@ void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
             }
         }
 
-        uint16_t media_id = get_media_id_from_handle(event->media_removed.media_handle);
-        printf("Media(%d) removed by Peer(%" PRIu64 ")\n", media_id, event->media_removed.peer_id);
+        // Print information about the media to the console
+        printf("Media(%d) removed by Peer(%" PRIu64 ")\n", media_id, peer_id);
     }
     else if (event->tag == OdinEvent_MediaActiveStateChanged)
     {
-        printf("Peer(%" PRIu64 ") %s sending data on Media(%d)\n", event->media_active_state_changed.peer_id, event->media_active_state_changed.active ? "started" : "stopped", get_media_id_from_handle(event->media_active_state_changed.media_handle));
+        uint16_t media_id = get_media_id_from_handle(event->media_active_state_changed.media_handle);
+        uint64_t peer_id = event->media_active_state_changed.peer_id;
+        const char *state = event->media_active_state_changed.active ? "started" : "stopped";
+
+        // Print information about the media activity update to the console
+        printf("Peer(%" PRIu64 ") %s sending data on Media(%d)\n", peer_id, state, media_id);
     }
     else if (event->tag == OdinEvent_MessageReceived)
     {
-        printf("Peer(%" PRIu64 ") sent a message with %zu bytes\n", event->message_received.peer_id, event->message_received.data_len);
+        uint64_t peer_id = event->message_received.peer_id;
+        size_t data_len = event->message_received.data_len;
+
+        // Print information about the data we've received to the console
+        printf("Peer(%" PRIu64 ") sent a message with %zu bytes\n", peer_id, data_len);
     }
 }
 
@@ -325,50 +422,116 @@ void handle_audio_data(ma_device *device, void *output, const void *input, ma_ui
     }
 }
 
-int main(int argc, char *argv[])
+int main(int argc, const char *argv[])
 {
-    char *room_id;
-    char *gateway_url;
-    char *access_key;
     char gen_access_key[128];
-    char room_token[512];
+    char gen_room_token[512];
     ma_device input_device;
     ma_device output_device;
     OdinReturnCode error;
 
-    /*
-     * Grab the user-specified room id or fallback to default
+    /**
+     * Parse optional command-line arguments nd adjust settings accordingly
+     *
+     * Rules for boolean arguments:
+     *  0 = Explicitly disable
+     *  1 = No change
+     *  2 = Explicitly enable
      */
-    room_id = (argc > 1) ? argv[1] : DEFAULT_ROOM_ID;
+    static const char *const usages[] = {
+        "odin_minimal [options]",
+        NULL,
+    };
+    int opt_apm_use_voice_activity_detection = 1;
+    int opt_apm_use_volume_gate = 1;
+    int opt_apm_use_echo_canceller = 1;
+    int opt_apm_use_high_pass_filter = 1;
+    int opt_apm_use_pre_amplifier = 1;
+    int opt_apm_use_transient_suppressor = 1;
+    int opt_apm_use_gain_controller = 1;
+    int opt_apm_noise_suppression_level = apm_config.noise_suppression_level;
+    struct argparse argparse;
+    struct argparse_option options[] = {
+        OPT_HELP(),
+        OPT_STRING('r', "room-id", &room_id, "room to join (default: default)", NULL, 0, 0),
+        OPT_STRING('s', "server-url", &server_url, "server url (default: gateway.odin.4players.io)", NULL, 0, 0),
+        OPT_STRING('d', "peer-user-data", &user_data, "peer user data to set when joining the room", NULL, 0, 0),
+        OPT_GROUP("Authorization"),
+        OPT_STRING('t', "room-token", &room_token, "room token to use for authorization", NULL, 0, 0),
+        OPT_STRING('k', "access-key", &access_key, "access key to use for local token generation", NULL, 0, 0),
+        OPT_STRING('u', "user-id", &room_token, "identifier to use for local token generation", NULL, 0, 0),
+        OPT_GROUP("Audio Processing"),
+        OPT_BOOLEAN('\0', "voice-activity-detection", &opt_apm_use_voice_activity_detection, "enable or disable speech detection algorithm", NULL, 0, 0),
+        OPT_BOOLEAN('\0', "volume-gate", &opt_apm_use_volume_gate, "enable or disable input volume gate", NULL, 0, 0),
+        OPT_FLOAT('\0', "volume-gate-dbfs-attack", &apm_config.volume_gate_attack_loudness, "input volume (dbFS) for gate to engage", NULL, 0, 0),
+        OPT_FLOAT('\0', "volume-gate-dbfs-release", &apm_config.volume_gate_release_loudness, "input volume (dbFS) for gate to disengage", NULL, 0, 0),
+        OPT_INTEGER('\0', "noise-suppression-level", &opt_apm_noise_suppression_level, "aggressiveness of noise suppression (0-5)", NULL, 0, 0),
+        OPT_BOOLEAN('\0', "echo-canceller", &opt_apm_use_echo_canceller, "enable or disable echo cancellation", NULL, 0, 0),
+        OPT_BOOLEAN('\0', "high-pass-filter", &opt_apm_use_high_pass_filter, "enable or disable high-pass filtering", NULL, 0, 0),
+        OPT_BOOLEAN('\0', "pre-amplifier", &opt_apm_use_pre_amplifier, "enable or disable pre-amplification", NULL, 0, 0),
+        OPT_BOOLEAN('\0', "transient-suppressor", &opt_apm_use_transient_suppressor, "enable or disable transient suppression", NULL, 0, 0),
+        OPT_BOOLEAN('\0', "gain-controller", &opt_apm_use_gain_controller, "enable or disable automatic gain control", NULL, 0, 0),
+        OPT_END(),
+    };
+    argparse_init(&argparse, options, usages, 0);
+    argparse_describe(&argparse, "\n4Players ODIN Minimal Client Example", "\nUse the 'no-' prefix to explicitly disable options (e.g. --no-volume-gate).\n");
+    argparse_parse(&argparse, argc, argv);
+    adjust_apm_option(&apm_config.voice_activity_detection, opt_apm_use_voice_activity_detection);
+    adjust_apm_option(&apm_config.volume_gate, opt_apm_use_volume_gate);
+    adjust_apm_option(&apm_config.echo_canceller, opt_apm_use_echo_canceller);
+    adjust_apm_option(&apm_config.high_pass_filter, opt_apm_use_high_pass_filter);
+    adjust_apm_option(&apm_config.transient_suppressor, opt_apm_use_transient_suppressor);
+    adjust_apm_option(&apm_config.gain_controller, opt_apm_use_gain_controller);
+    apm_config.noise_suppression_level = fmax(OdinNoiseSuppressionLevel_None, fmin(OdinNoiseSuppressionLevel_VeryHigh, opt_apm_noise_suppression_level));
 
     /*
-     * Grab the user-specified access key or generate a local test key if needed
+     * Generate a room token (JWT) to authenticate and join an ODIN room
      *
      * ===== IMPORTANT =====
+     * Token generation should always be done on the server side, to prevent sensitive information from being leaked to
+     * unauthorized parties. This functionality is provided for testing and demonstration purposes only in this client.
+     *
      * Your access key is the unique authentication key to be used to generate room tokens for accessing the ODIN
      * server network. Think of it as your individual username and password combination all wrapped up into a single
-     * non-comprehendible string of characters, and treat it with the same respect. For your own security, we strongly
-     * recommend that you NEVER put an access key in your client-side code.
+     * non-comprehendible string of characters, and treat it with the same respect.
+     *
+     * Production code should NEVER generate tokens or contain your access key on the client side!
      */
-    if (argc > 2)
+    if (room_token == NULL)
     {
-        access_key = argv[2];
-    }
-    else
-    {
-        if (0 != read_access_key_file("odin_access_key", gen_access_key))
+        if (access_key == NULL)
         {
-            odin_access_key_generate(gen_access_key, sizeof(gen_access_key));
-            write_access_key_file("odin_access_key", gen_access_key);
+            if (0 != read_access_key_file("odin_access_key", gen_access_key))
+            {
+                odin_access_key_generate(gen_access_key, sizeof(gen_access_key));
+                write_access_key_file("odin_access_key", gen_access_key);
+            }
+            access_key = gen_access_key;
+            printf("Using access key '%s' for testing\n", access_key);
         }
-        access_key = gen_access_key;
-        printf("Using access key '%s' for testing\n", access_key);
-    }
 
-    /*
-     * Grab the user-specified gateway address or fallback to default
-     */
-    gateway_url = (argc > 3) ? argv[3] : DEFAULT_GW_ADDR;
+        OdinTokenGenerator *generator = odin_token_generator_create(access_key);
+        if (!generator)
+        {
+            fprintf(stderr, "Failed to initialize token generator; invalid access key\n");
+            return 1;
+        }
+
+        OdinTokenOptions token_options = {
+            .customer = "<no customer>",
+            .audience = OdinTokenAudience_Gateway,
+            .lifetime = 300,
+        };
+        error = odin_token_generator_create_token_ex(generator, room_id, user_id, &token_options, gen_room_token, sizeof(gen_room_token));
+        if (odin_is_error(error))
+        {
+            print_error(error, "Failed to generate room token");
+            return 1;
+        }
+        room_token = gen_room_token;
+
+        odin_token_generator_destroy(generator);
+    }
 
     /*
      * Initialize the ODIN runtime based on the global output config
@@ -377,37 +540,7 @@ int main(int argc, char *argv[])
     odin_startup_ex(ODIN_VERSION, audio_output_config);
 
     /*
-     * Spawn a new token generator using the specified access key
-     */
-    OdinTokenGenerator *generator = odin_token_generator_create(access_key);
-    if (!generator)
-    {
-        fprintf(stderr, "Failed to initialize token generator; invalid access key\n");
-        return 1;
-    }
-
-    /*
-     * Generate a new room token to access the ODIN network
-     */
-    OdinTokenOptions token_options = {
-        .customer = "<NO_CUSTOMER>",
-        .audience = OdinTokenAudience_Gateway,
-        .lifetime = 300,
-    };
-    error = odin_token_generator_create_token_ex(generator, room_id, "My User ID", &token_options, room_token, sizeof(room_token));
-    if (odin_is_error(error))
-    {
-        print_error(error, "Failed to generate room token");
-        return 1;
-    }
-
-    /*
-     * Destroy the token generator as we don't need it anymore
-     */
-    odin_token_generator_destroy(generator);
-
-    /*
-     * Create a new ODIN room pointer in an unconnected state
+     * Create a new local ODIN room handle in an unconnected state
      */
     room = odin_room_create();
 
@@ -421,9 +554,8 @@ int main(int argc, char *argv[])
     }
 
     /*
-     * Set some initial user data for our peer using JSON
+     * Set some initial user data for our peer
      */
-    char *user_data = "{\"name\":\"Console Client\"}";
     error = odin_room_update_user_data(room, OdinUserDataTarget_Peer, (uint8_t *)user_data, strlen(user_data));
     if (odin_is_error(error))
     {
@@ -433,8 +565,8 @@ int main(int argc, char *argv[])
     /*
      * Establish a connection to the ODIN network and join the specified room
      */
-    printf("Joining room '%s' using '%s'\n", room_id, gateway_url);
-    error = odin_room_join(room, gateway_url, room_token);
+    printf("Joining room '%s' using '%s'\n", room_id, server_url);
+    error = odin_room_join(room, server_url, room_token);
     if (odin_is_error(error))
     {
         print_error(error, "Failed to join room");
@@ -442,22 +574,8 @@ int main(int argc, char *argv[])
     }
 
     /*
-     * Configure audio processing options for the room
+     * Apply audio processing configuration for the room
      */
-    OdinApmConfig apm_config = {
-        .voice_activity_detection = true,
-        .voice_activity_detection_attack_probability = 0.9,
-        .voice_activity_detection_release_probability = 0.8,
-        .volume_gate = false,
-        .volume_gate_attack_loudness = -30,
-        .volume_gate_release_loudness = -40,
-        .echo_canceller = true,
-        .high_pass_filter = false,
-        .pre_amplifier = false,
-        .noise_suppression_level = OdinNoiseSuppressionLevel_Moderate,
-        .transient_suppressor = false,
-        .gain_controller = true,
-    };
     error = odin_room_configure_apm(room, apm_config);
     if (odin_is_error(error))
     {
@@ -466,7 +584,7 @@ int main(int argc, char *argv[])
     }
 
     /*
-     * Create the input audio stream based on the global input config
+     * Create a new local input audio stream handle based on the global input config
      */
     input_stream = odin_audio_stream_create(audio_input_config);
 

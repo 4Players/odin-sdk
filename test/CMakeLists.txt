@@ -5,13 +5,24 @@ project(odin_minimal LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+set(ARGPARSE_DIR ${PROJECT_SOURCE_DIR}/deps/argparse CACHE PATH "argparse library")
 set(MINIAUDIO_DIR ${PROJECT_SOURCE_DIR}/deps/miniaudio CACHE PATH "miniaudio library")
+
+include(FetchContent)
+FetchContent_Declare(
+    argparse
+    GIT_REPOSITORY https://github.com/cofyc/argparse.git
+    GIT_TAG        15091715cc379bc647d5de6345185a288a35f999 # version 1.1.0
+    DOWNLOAD_DIR   ${ARGPARSE_DIR}
+    SOURCE_DIR     ${ARGPARSE_DIR}
+)
+FetchContent_MakeAvailable(argparse)
 
 include(FetchContent)
 FetchContent_Declare(
     miniaudio
     GIT_REPOSITORY https://github.com/mackron/miniaudio.git
-    GIT_TAG        fb9c18c70514aad992e6781b79f7fc43709b1613 # version 0.11.13
+    GIT_TAG        9a7663496fc06f7a9439c752fd7666ca93328c20 # version 0.11.14
     DOWNLOAD_DIR   ${MINIAUDIO_DIR}
     SOURCE_DIR     ${MINIAUDIO_DIR}
 )
@@ -41,11 +52,11 @@ else()
     message(FATAL_ERROR "Unknown platform; only Windows, macOS and Linux are supported")
 endif()
 
-include_directories("${CMAKE_SOURCE_DIR}/../include" ${MINIAUDIO_DIR})
+include_directories("${CMAKE_SOURCE_DIR}/../include" ${ARGPARSE_DIR} ${MINIAUDIO_DIR})
 link_directories(${ODIN_SDK_DIR})
 
 add_executable(${PROJECT_NAME} src/main.c)
-target_link_libraries(${PROJECT_NAME} PRIVATE odin)
+target_link_libraries(${PROJECT_NAME} PRIVATE odin argparse)
 
 if(APPLE)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_INSTALL_NAME_TOOL} -rpath ${ODIN_SDK_DIR} "@executable_path" $<TARGET_FILE:${PROJECT_NAME}>)
