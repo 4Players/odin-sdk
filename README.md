@@ -71,17 +71,19 @@ msbuild odin_minimal.sln
 
 ### Using the Test Client
 
-The test client accepts three optional arguments:
+The test client accepts several arguments to control its functions, but the following three options are particularly crucial for its intended purpose:
 
-```bat
-odin_minimal <room_id> <access_key> <gateway_url>
+```text
+odin_minimal -r <room_id> -k <access_key> -s <server_url>
 ```
 
-The first argument allows you to specify a room name to join. If no `room_id` is specified, the client will join a room called **default**.
+The `-r` argument (or `--room-id`) is used to specify the name of the room to join. If no room name is provided, the client will automatically join a room called **default**.
 
-The second argument is an optional `access_key`. If none is provided, the test client will auto-generate a key and print it to the console. An access key is your unique authentication key, which is used to generate room tokens for accessing the 4Players ODIN server network. All clients that want to join the same ODIN room, need to use a token generated from either the same access key or another access key of the same project. To learn more about access keys, please refer to our [documentation](https://developers.4players.io/odin/guides/access-keys/).
+The `-k` argument (or `--access-key`) is used to specify an access key for generating tokens. If no access key is provided, the test client will auto-generate a key and display it in the console. An access key is a unique authentication key used to generate room tokens for accessing the 4Players ODIN server network. It is important to use the same access key for all clients that wish to join the same ODIN room. For more information about access keys, please refer to our [documentation](https://developers.4players.io/odin/guides/access-keys/).
 
-The third and last argument allows you to specify an alternate ODIN `gateway_url`, which might be necessary if you're hosting your own fleet of ODIN servers. Otherwise, just use our default gateway, which is **https://gateway.odin.4players.io**.
+The `-s` argument (or `--server-url`) allows you to specify an alternate ODIN server address. This address can be either the URL to an ODIN gateway or an ODIN server. You may need to specify an alternate server if you are hosting your own fleet of ODIN servers. If you do not specify an ODIN server URL, the test client will use the default gateway, which is located at **https://gateway.odin.4players.io**.
+
+**Note:** You can use the `--help` argument to get a full list of options provided by the console client.
 
 ## Troubleshooting
 
