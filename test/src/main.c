@@ -459,7 +459,7 @@ int main(int argc, const char *argv[])
         OPT_GROUP("Authorization"),
         OPT_STRING('t', "room-token", &room_token, "room token to use for authorization", NULL, 0, 0),
         OPT_STRING('k', "access-key", &access_key, "access key to use for local token generation", NULL, 0, 0),
-        OPT_STRING('u', "user-id", &room_token, "identifier to use for local token generation", NULL, 0, 0),
+        OPT_STRING('u', "user-id", &user_id, "identifier to use for local token generation", NULL, 0, 0),
         OPT_GROUP("Audio Processing"),
         OPT_BOOLEAN('\0', "voice-activity-detection", &opt_apm_use_voice_activity_detection, "enable or disable speech detection algorithm", NULL, 0, 0),
         OPT_BOOLEAN('\0', "volume-gate", &opt_apm_use_volume_gate, "enable or disable input volume gate", NULL, 0, 0),
