@@ -220,7 +220,7 @@ int write_access_key_file(const char *file_name, const char *access_key)
  */
 void adjust_apm_option(bool *option, int action)
 {
-    *option = (action == 2) || (action == 1 && option);
+    *option = (action == 2) || (action == 1 && *option);
 }
 
 /**
