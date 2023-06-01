@@ -591,25 +591,6 @@ int main(int argc, const char *argv[])
     }
 
     /*
-     * Configure and startup miniaudio input device
-     */
-    ma_device_config input_config = ma_device_config_init(ma_device_type_capture);
-    input_config.capture.format = ma_format_f32;
-    input_config.capture.channels = audio_input_config.channel_count;
-    input_config.sampleRate = audio_input_config.sample_rate;
-    input_config.dataCallback = handle_audio_data;
-    ma_device_init(NULL, &input_config, &input_device);
-    if (ma_device_start(&input_device) != MA_SUCCESS)
-    {
-        fprintf(stderr, "Failed to open capture device\n");
-        ma_device_uninit(&input_device);
-    }
-    else
-    {
-        printf("Using capture device '%s'\n", input_device.capture.name);
-    }
-
-    /*
      * Configure and startup miniaudio output device
      */
     ma_device_config output_config = ma_device_config_init(ma_device_type_playback);
@@ -626,6 +607,25 @@ int main(int argc, const char *argv[])
     else
     {
         printf("Using playback device '%s'\n", output_device.playback.name);
+    }
+
+    /*
+     * Configure and startup miniaudio input device
+     */
+    ma_device_config input_config = ma_device_config_init(ma_device_type_capture);
+    input_config.capture.format = ma_format_f32;
+    input_config.capture.channels = audio_input_config.channel_count;
+    input_config.sampleRate = audio_input_config.sample_rate;
+    input_config.dataCallback = handle_audio_data;
+    ma_device_init(NULL, &input_config, &input_device);
+    if (ma_device_start(&input_device) != MA_SUCCESS)
+    {
+        fprintf(stderr, "Failed to open capture device\n");
+        ma_device_uninit(&input_device);
+    }
+    else
+    {
+        printf("Using capture device '%s'\n", input_device.capture.name);
     }
 
     /*
