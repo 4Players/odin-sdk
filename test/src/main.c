@@ -555,6 +555,16 @@ int main(int argc, const char *argv[])
     }
 
     /*
+     * Apply audio processing configuration for the room
+     */
+    error = odin_room_configure_apm(room, apm_config);
+    if (odin_is_error(error))
+    {
+        print_error(error, "Failed to configure room audio processing options");
+        return 1;
+    }
+
+    /*
      * Establish a connection to the ODIN network and join the specified room
      */
     printf("Joining room '%s' using '%s'\n", room_id, server_url);
@@ -562,16 +572,6 @@ int main(int argc, const char *argv[])
     if (odin_is_error(error))
     {
         print_error(error, "Failed to join room");
-        return 1;
-    }
-
-    /*
-     * Apply audio processing configuration for the room
-     */
-    error = odin_room_configure_apm(room, apm_config);
-    if (odin_is_error(error))
-    {
-        print_error(error, "Failed to configure room audio processing options");
         return 1;
     }
 
