@@ -36,7 +36,7 @@ char *server_url = "gateway.odin.4players.io";
 char *user_data = "{\"name\":\"Console Client\"}";
 
 /**
- * @brief Default user ID to use during authentication (usually refers to an existing record in your particular service)
+ * @brief Default user ID to use during authentication (usually refers to an existing record in your particular service).
  */
 char *user_id = "My User ID";
 
@@ -49,6 +49,11 @@ char *access_key = NULL;
  * @brief Default room token to use if none is specified (using `NULL` will auto-generate one).
  */
 char *room_token = NULL;
+
+/**
+ * @brief Default audience for ODIN room tokens (use `OdinTokenAudience_Sfu` for on-premise setups without a gateway).
+ */
+int token_audience = OdinTokenAudience_Gateway;
 
 /**
  * @brief Audio input configuration.
@@ -452,6 +457,7 @@ int main(int argc, const char *argv[])
         OPT_STRING('t', "room-token", &room_token, "room token to use for authorization", NULL, 0, 0),
         OPT_STRING('k', "access-key", &access_key, "access key to use for local token generation", NULL, 0, 0),
         OPT_STRING('u', "user-id", &user_id, "identifier to use for local token generation", NULL, 0, 0),
+        OPT_BOOLEAN('b', "bypass-gateway", &token_audience, "bypass gateway and connect to sfu directly", NULL, 0, 0),
         OPT_GROUP("Audio Processing"),
         OPT_BOOLEAN('\0', "voice-activity-detection", &opt_apm_use_voice_activity_detection, "enable or disable speech detection algorithm", NULL, 0, 0),
         OPT_BOOLEAN('\0', "volume-gate", &opt_apm_use_volume_gate, "enable or disable input volume gate", NULL, 0, 0),
@@ -511,7 +517,7 @@ int main(int argc, const char *argv[])
 
         OdinTokenOptions token_options = {
             .customer = "<no customer>",
-            .audience = OdinTokenAudience_Gateway,
+            .audience = token_audience,
             .lifetime = 300,
         };
         error = odin_token_generator_create_token_ex(generator, room_id, user_id, &token_options, gen_room_token, sizeof(gen_room_token));
