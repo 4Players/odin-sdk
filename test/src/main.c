@@ -392,11 +392,7 @@ void handle_audio_data(ma_device *device, void *output, const void *input, ma_ui
          * Push audio buffer from miniaudio callback to ODIN input stream
          */
         int sample_count = frame_count * device->capture.channels;
-        int error = odin_audio_push_data(input_stream, input, sample_count);
-        if (odin_is_error(error))
-        {
-            print_error(error, "Failed to push audio data");
-        }
+        odin_audio_push_data(input_stream, input, sample_count);
     }
     else if (device->type == ma_device_type_playback)
     {
@@ -407,11 +403,7 @@ void handle_audio_data(ma_device *device, void *output, const void *input, ma_ui
         float *samples = malloc(sample_count * sizeof(float));
         for (size_t i = 0; i < output_streams_len; i++)
         {
-            int error = odin_audio_read_data(output_streams[i], samples, sample_count);
-            if (odin_is_error(error))
-            {
-                print_error(error, "Failed to read audio data from media handle");
-            }
+            odin_audio_read_data(output_streams[i], samples, sample_count);
             for (size_t i = 0; i < sample_count; ++i)
             {
                 ((float *)output)[i] += samples[i];
