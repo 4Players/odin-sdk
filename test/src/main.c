@@ -55,6 +55,16 @@ char *room_token = NULL;
  */
 int token_audience = OdinTokenAudience_Gateway;
 
+/*
+ * @brief Numeric index of the enumerated audio playback device to use (using `0` will pick the default device).
+ */
+int audio_output_device = 0;
+
+/*
+ * @brief Numeric index of the enumerated audio capture device to use (using `0` will pick the default device).
+ */
+int audio_input_device = 0;
+
 /**
  * @brief Audio input configuration.
  */
@@ -101,7 +111,18 @@ struct MyMessage
 };
 
 /**
- * @brief Basic helper function to print formatted error messages to standard error I/O
+ * @Brief Custom struct to store information about available audio devices from miniaudio.
+ */
+typedef struct
+{
+    ma_device_info *output_devices;
+    ma_uint32 output_devices_count;
+    ma_device_info *input_devices;
+    ma_uint32 input_devices_count;
+} AudioDeviceList;
+
+/**
+ * @brief Basic helper function to print formatted error messages to standard error I/O.
  *
  * @param error    ODIN error code to format
  * @param text     Custom string to use as error text prefix
@@ -114,7 +135,7 @@ void print_error(OdinReturnCode error, const char *text)
 }
 
 /**
- * @brief Basic helper function to get the internal media ID from a specified handle
+ * @brief Basic helper function to get the internal media ID from a specified handle.
  *
  * @param handle    The media stream handle to get the ID from
  */
@@ -126,7 +147,7 @@ uint16_t get_media_id_from_handle(OdinMediaStreamHandle handle)
 }
 
 /**
- * @brief Basic helper function to get the room ID from a specified handle
+ * @brief Basic helper function to get the room ID from a specified handle.
  *
  * @param handle    The room handle to get the ID from
  */
@@ -138,7 +159,7 @@ const char *get_room_id_from_handle(OdinRoomHandle handle)
 }
 
 /**
- * @brief Returns a human-readable string representation for a specified connection state
+ * @brief Returns a human-readable string representation for a specified connection state.
  *
  * @param state    The room connection state to translate
  */
@@ -160,7 +181,7 @@ const char *get_name_from_connection_state(OdinRoomConnectionState state)
 }
 
 /**
- * @brief Returns a human-readable string representation for a specified connection state change reason
+ * @brief Returns a human-readable string representation for a specified connection state change reason.
  *
  * @param state    The room connection state change reason to translate
  */
@@ -180,7 +201,7 @@ const char *get_name_from_connection_state_change_reason(OdinRoomConnectionState
 }
 
 /**
- * @brief Reads an ODIN access key from the specified file
+ * @brief Reads an ODIN access key from the specified file.
  *
  * @param file_name     Name of the file to read
  * @param access_key    Buffer to store access key
@@ -199,7 +220,7 @@ int read_access_key_file(const char *file_name, char *access_key)
 }
 
 /**
- * @brief Writes an ODIN access key to the specified file
+ * @brief Writes an ODIN access key to the specified file.
  *
  * @param file_name     Name of the file to write
  * @param access_key    The access key to write
@@ -218,6 +239,56 @@ int write_access_key_file(const char *file_name, const char *access_key)
 }
 
 /**
+ * @brief Fills an `AudioDeviceList` struct with information about the available audio devices.
+ *
+ * @param devices      Pointer to a struct which will be filled with device information
+ */
+int fill_audio_devices(AudioDeviceList *devices)
+{
+    ma_context context;
+    ma_device_info *output_devices;
+    ma_uint32 output_devices_count;
+    ma_device_info *input_devices;
+    ma_uint32 input_devices_count;
+    ma_result result = ma_context_init(NULL, 0, NULL, &context);
+    if (result == MA_SUCCESS)
+    {
+        if ((result = ma_context_get_devices(&context, &output_devices, &output_devices_count, &input_devices, &input_devices_count)) == MA_SUCCESS)
+        {
+            devices->output_devices = (ma_device_info *)malloc(sizeof(ma_device_info) * output_devices_count);
+            memcpy(devices->output_devices, output_devices, sizeof(ma_device_info) * output_devices_count);
+            devices->output_devices_count = output_devices_count;
+            devices->input_devices = (ma_device_info *)malloc(sizeof(ma_device_info) * input_devices_count);
+            memcpy(devices->input_devices, input_devices, sizeof(ma_device_info) * input_devices_count);
+            devices->input_devices_count = input_devices_count;
+        }
+        ma_context_uninit(&context);
+    }
+    return result;
+}
+
+/**
+ * @brief Frees the memory allocated for the device info arrays in an `AudioDeviceList` struct.
+ *
+ * @param devices      Pointer to a struct which had its info arrays previously allocated with malloc
+ */
+void free_audio_devices(AudioDeviceList *devices)
+{
+    if (devices->output_devices != NULL)
+    {
+        free(devices->output_devices);
+        devices->output_devices = NULL;
+    }
+    devices->output_devices_count = 0;
+    if (devices->input_devices != NULL)
+    {
+        free(devices->input_devices);
+        devices->input_devices = NULL;
+    }
+    devices->input_devices_count = 0;
+}
+
+/**
  * @brief Explicitly enables/disables a given boolean or leaves it untouched.
  *
  * @param option    The option value to change
@@ -229,7 +300,7 @@ void adjust_apm_option(bool *option, int action)
 }
 
 /**
- * @brief Adds a media stream to the global list of output streams
+ * @brief Adds a media stream to the global list of output streams.
  *
  * @param stream    ODIN media stream to insert
  */
@@ -240,7 +311,7 @@ void insert_output_stream(OdinMediaStreamHandle stream)
 }
 
 /**
- * @brief Removes a media stream from the global list of output stream and destroys it
+ * @brief Removes a media stream from the global list of output stream and destroys it.
  *
  * @param index    Position of the ODIN media stream to remove
  */
@@ -252,7 +323,7 @@ void remove_output_stream(size_t index)
 }
 
 /**
- * @brief Handler for ODIN room event callbacks
+ * @brief Handler for ODIN room event callbacks.
  *
  * @param room     Handle identifier of the ODIN room that triggered the event
  * @param event    Pointer to ODIN event the be handled
@@ -382,7 +453,7 @@ void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
 }
 
 /**
- * @brief Handler for miniaudio callbacks fired whenever data is ready to be delivered to or from the device
+ * @brief Handler for miniaudio callbacks fired whenever data is ready to be delivered to or from the device.
  *
  * @param device         Pointer to the relevant input/output device
  * @param output         Pointer to output buffer that will receive audio data for playback
@@ -399,7 +470,7 @@ void handle_audio_data(ma_device *device, void *output, const void *input, ma_ui
         int sample_count = frame_count * device->capture.channels;
         odin_audio_push_data(input_stream, input, sample_count);
     }
-    else if (device->type == ma_device_type_playback)
+    else if (device->type == ma_device_type_playback && output_streams_len)
     {
         /**
          * Walk through list of ODIN output streams to read and mix their data into the miniaudio output buffer
@@ -419,13 +490,71 @@ void handle_audio_data(ma_device *device, void *output, const void *input, ma_ui
     }
 }
 
+/**
+ * @brief Prints the ODIN core SDK version and terminates the program.
+ *
+ * @param self           Pointer to the argparse struct
+ * @param option         Pointer to the argparse option struct
+ */
+int cmd_show_version(struct argparse *self, const struct argparse_option *option)
+{
+    printf("%s\n", ODIN_VERSION);
+    exit(0);
+}
+
+/**
+ * @brief Prints a list of available audio devices and terminates the program.
+ *
+ * @param self           Pointer to the argparse struct
+ * @param option         Pointer to the argparse option struct
+ */
+int cmd_list_audio_devices(struct argparse *self, const struct argparse_option *option)
+{
+    AudioDeviceList audio_devices;
+    if (fill_audio_devices(&audio_devices) != MA_SUCCESS)
+    {
+        printf("Failed to retrieve audio device information\n");
+        exit(1);
+    }
+    printf("Playback Devices\n");
+    for (int i = 0; i < audio_devices.output_devices_count; ++i)
+    {
+        printf("    %u: %s\n", i + 1, audio_devices.output_devices[i].name);
+    }
+    printf("\n");
+    printf("Capture Devices\n");
+    for (int i = 0; i < audio_devices.input_devices_count; ++i)
+    {
+        printf("    %u: %s\n", i + 1, audio_devices.input_devices[i].name);
+    }
+    printf("\n");
+    free_audio_devices(&audio_devices);
+    exit(0);
+}
+
+/**
+ * @brief The entry point of the program.
+ *
+ * @param argc           The number of command-line arguments passed to the program
+ * @param argv           An array of pointers to strings, where each string is one of the command-line arguments
+ */
 int main(int argc, const char *argv[])
 {
     char gen_access_key[128];
     char gen_room_token[512];
     ma_device input_device;
     ma_device output_device;
+    AudioDeviceList devices;
     OdinReturnCode error;
+
+    /*
+     * Use miniaudio to retrieve a list of available audio devices
+     */
+    if (fill_audio_devices(&devices) != MA_SUCCESS)
+    {
+        printf("Failed to retrieve audio device information\n");
+        return 1;
+    }
 
     /**
      * Parse optional command-line arguments nd adjust settings accordingly
@@ -450,6 +579,7 @@ int main(int argc, const char *argv[])
     struct argparse argparse;
     struct argparse_option options[] = {
         OPT_HELP(),
+        OPT_BOOLEAN('v', "version", NULL, "show version number and exit", cmd_show_version, 0, OPT_NONEG),
         OPT_STRING('r', "room-id", &room_id, "room to join (default: default)", NULL, 0, 0),
         OPT_STRING('s', "server-url", &server_url, "server url (default: gateway.odin.4players.io)", NULL, 0, 0),
         OPT_STRING('d', "peer-user-data", &user_data, "peer user data to set when joining the room", NULL, 0, 0),
@@ -457,7 +587,13 @@ int main(int argc, const char *argv[])
         OPT_STRING('t', "room-token", &room_token, "room token to use for authorization", NULL, 0, 0),
         OPT_STRING('k', "access-key", &access_key, "access key to use for local token generation", NULL, 0, 0),
         OPT_STRING('u', "user-id", &user_id, "identifier to use for local token generation", NULL, 0, 0),
-        OPT_BOOLEAN('b', "bypass-gateway", &token_audience, "bypass gateway and connect to sfu directly", NULL, 0, 0),
+        OPT_BOOLEAN('b', "bypass-gateway", &token_audience, "bypass gateway and connect to sfu directly", NULL, 0, OPT_NONEG),
+        OPT_GROUP("Audio Devices"),
+        OPT_BOOLEAN('a', "audio-devices", NULL, "show available audio devices and exit", cmd_list_audio_devices, 0, OPT_NONEG),
+        OPT_INTEGER('\0', "output-device", &audio_output_device, "playback device to use", NULL, 0, 0),
+        OPT_INTEGER('\0', "output-channel-count", &audio_output_config.channel_count, "playback channel count (1-2)", NULL, 0, 0),
+        OPT_INTEGER('\0', "input-device", &audio_input_device, "capture device to use", NULL, 0, 0),
+        OPT_INTEGER('\0', "input-channel-count", &audio_input_config.channel_count, "capture channel count (1-2)", NULL, 0, 0),
         OPT_GROUP("Audio Processing"),
         OPT_BOOLEAN('\0', "voice-activity-detection", &opt_apm_use_voice_activity_detection, "enable or disable speech detection algorithm", NULL, 0, 0),
         OPT_BOOLEAN('\0', "volume-gate", &opt_apm_use_volume_gate, "enable or disable input volume gate", NULL, 0, 0),
@@ -481,6 +617,56 @@ int main(int argc, const char *argv[])
     adjust_apm_option(&apm_config.transient_suppressor, opt_apm_use_transient_suppressor);
     adjust_apm_option(&apm_config.gain_controller, opt_apm_use_gain_controller);
     apm_config.noise_suppression_level = fmax(OdinNoiseSuppressionLevel_None, fmin(OdinNoiseSuppressionLevel_VeryHigh, opt_apm_noise_suppression_level));
+    audio_output_config.channel_count = fmax(1, fmin(2, audio_output_config.channel_count));
+    audio_output_device = fmax(0, fmin(devices.output_devices_count, audio_output_device));
+    audio_input_config.channel_count = fmax(1, fmin(2, audio_input_config.channel_count));
+    audio_input_device = fmax(0, fmin(devices.input_devices_count, audio_input_device));
+
+    /*
+     * Configure and startup miniaudio output device
+     */
+    ma_device_config output_config = ma_device_config_init(ma_device_type_playback);
+    if (audio_output_device > 0)
+    {
+        output_config.playback.pDeviceID = &devices.output_devices[audio_output_device - 1].id;
+    }
+    output_config.playback.format = ma_format_f32;
+    output_config.playback.channels = audio_output_config.channel_count;
+    output_config.sampleRate = audio_output_config.sample_rate;
+    output_config.dataCallback = handle_audio_data;
+    ma_device_init(NULL, &output_config, &output_device);
+    if (ma_device_start(&output_device) != MA_SUCCESS)
+    {
+        fprintf(stderr, "Failed to open playback device\n");
+        ma_device_uninit(&output_device);
+    }
+    else
+    {
+        printf("Using playback device '%s'\n", output_device.playback.name);
+    }
+
+    /*
+     * Configure and startup miniaudio input device
+     */
+    ma_device_config input_config = ma_device_config_init(ma_device_type_capture);
+    if (audio_input_device > 0)
+    {
+        input_config.capture.pDeviceID = &devices.input_devices[audio_input_device - 1].id;
+    }
+    input_config.capture.format = ma_format_f32;
+    input_config.capture.channels = audio_input_config.channel_count;
+    input_config.sampleRate = audio_input_config.sample_rate;
+    input_config.dataCallback = handle_audio_data;
+    ma_device_init(NULL, &input_config, &input_device);
+    if (ma_device_start(&input_device) != MA_SUCCESS)
+    {
+        fprintf(stderr, "Failed to open capture device\n");
+        ma_device_uninit(&input_device);
+    }
+    else
+    {
+        printf("Using capture device '%s'\n", input_device.capture.name);
+    }
 
     /*
      * Generate a room token (JWT) to authenticate and join an ODIN room
@@ -597,44 +783,6 @@ int main(int argc, const char *argv[])
     }
 
     /*
-     * Configure and startup miniaudio output device
-     */
-    ma_device_config output_config = ma_device_config_init(ma_device_type_playback);
-    output_config.playback.format = ma_format_f32;
-    output_config.playback.channels = audio_output_config.channel_count;
-    output_config.sampleRate = audio_output_config.sample_rate;
-    output_config.dataCallback = handle_audio_data;
-    ma_device_init(NULL, &output_config, &output_device);
-    if (ma_device_start(&output_device) != MA_SUCCESS)
-    {
-        fprintf(stderr, "Failed to open playback device\n");
-        ma_device_uninit(&output_device);
-    }
-    else
-    {
-        printf("Using playback device '%s'\n", output_device.playback.name);
-    }
-
-    /*
-     * Configure and startup miniaudio input device
-     */
-    ma_device_config input_config = ma_device_config_init(ma_device_type_capture);
-    input_config.capture.format = ma_format_f32;
-    input_config.capture.channels = audio_input_config.channel_count;
-    input_config.sampleRate = audio_input_config.sample_rate;
-    input_config.dataCallback = handle_audio_data;
-    ma_device_init(NULL, &input_config, &input_device);
-    if (ma_device_start(&input_device) != MA_SUCCESS)
-    {
-        fprintf(stderr, "Failed to open capture device\n");
-        ma_device_uninit(&input_device);
-    }
-    else
-    {
-        printf("Using capture device '%s'\n", input_device.capture.name);
-    }
-
-    /*
      * Send some arbitrary data to all peers in the room
      */
     struct MyMessage msg = {
@@ -658,6 +806,11 @@ int main(int argc, const char *argv[])
      */
     ma_device_uninit(&input_device);
     ma_device_uninit(&output_device);
+
+    /*
+     * Cleanup list of previously retrieved audio devices
+     */
+    free_audio_devices(&devices);
 
     /*
      * Destroy the input audio stream.
