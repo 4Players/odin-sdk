@@ -591,8 +591,10 @@ int main(int argc, const char *argv[])
         OPT_GROUP("Audio Devices"),
         OPT_BOOLEAN('a', "audio-devices", NULL, "show available audio devices and exit", cmd_list_audio_devices, 0, OPT_NONEG),
         OPT_INTEGER('\0', "output-device", &audio_output_device, "playback device to use", NULL, 0, 0),
+        OPT_INTEGER('\0', "output-sample-rate", &audio_output_config.sample_rate, "playback sample rate in Hz", NULL, 0, 0),
         OPT_INTEGER('\0', "output-channel-count", &audio_output_config.channel_count, "playback channel count (1-2)", NULL, 0, 0),
         OPT_INTEGER('\0', "input-device", &audio_input_device, "capture device to use", NULL, 0, 0),
+        OPT_INTEGER('\0', "input-sample-rate", &audio_input_config.sample_rate, "capture sample rate in Hz", NULL, 0, 0),
         OPT_INTEGER('\0', "input-channel-count", &audio_input_config.channel_count, "capture channel count (1-2)", NULL, 0, 0),
         OPT_GROUP("Audio Processing"),
         OPT_BOOLEAN('\0', "voice-activity-detection", &opt_apm_use_voice_activity_detection, "enable or disable speech detection algorithm", NULL, 0, 0),
@@ -617,8 +619,10 @@ int main(int argc, const char *argv[])
     adjust_apm_option(&apm_config.transient_suppressor, opt_apm_use_transient_suppressor);
     adjust_apm_option(&apm_config.gain_controller, opt_apm_use_gain_controller);
     apm_config.noise_suppression_level = fmax(OdinNoiseSuppressionLevel_None, fmin(OdinNoiseSuppressionLevel_VeryHigh, opt_apm_noise_suppression_level));
+    audio_output_config.sample_rate = fmax(8000, fmin(192000, audio_output_config.sample_rate));
     audio_output_config.channel_count = fmax(1, fmin(2, audio_output_config.channel_count));
     audio_output_device = fmax(0, fmin(devices.output_devices_count, audio_output_device));
+    audio_input_config.sample_rate = fmax(8000, fmin(192000, audio_input_config.sample_rate));
     audio_input_config.channel_count = fmax(1, fmin(2, audio_input_config.channel_count));
     audio_input_device = fmax(0, fmin(devices.input_devices_count, audio_input_device));
 
