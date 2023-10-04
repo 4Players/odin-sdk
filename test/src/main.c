@@ -350,10 +350,13 @@ void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
             }
         }
 
-        // Stop client if the room was closed by the server or we were kicked/banned
-        if (event->room_connection_state_changed.reason == OdinRoomConnectionStateChangeReason_ServerRequested)
+        // Stop client if the room handle gets disconnected (e.g. due to room close, kick/ban or connection issues)
+        if (event->room_connection_state_changed.state == OdinRoomConnectionState_Disconnected)
         {
-            exit(1);
+            if (event->room_connection_state_changed.reason != OdinRoomConnectionStateChangeReason_ClientRequested)
+            {
+                exit(1);
+            }
         }
     }
     else if (event->tag == OdinEvent_Joined)
