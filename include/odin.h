@@ -118,20 +118,6 @@ typedef enum OdinTokenAudience {
 } OdinTokenAudience;
 
 /**
- * Supported targets for user data updates.
- */
-typedef enum OdinUserDataTarget {
-    /**
-     * Individual user data for your own peer
-     */
-    OdinUserDataTarget_Peer,
-    /**
-     * Global user data for the room
-     */
-    OdinUserDataTarget_Room,
-} OdinUserDataTarget;
-
-/**
  * A pointer to a local ODIN token generator, employed for generating signed room tokens predicated
  * on an access key. Be aware that access keys serve as your unique authentication keys, requisite
  * for generating room tokens to access the ODIN server network. To ensure your security, it's
@@ -663,16 +649,14 @@ OdinReturnCode odin_room_peer_id(OdinRoomHandle room, uint64_t *out_peer_id);
 OdinReturnCode odin_room_connection_stats(OdinRoomHandle room, struct OdinConnectionStats *stats);
 
 /**
- * Updates the custom user data for either your own peer or the specified `OdinRoomHandle` itself.
- * All user data is synced automatically, which allows storing of arbitrary information for each
- * individual peer and even globally for the room if needed.
+ * Updates the custom user data for your own peer. All user data is synced automatically, which
+ * allows storing of arbitrary information for each individual peer.
  *
  * Note: Use this before calling `odin_room_join` to set initial peer user data upon connect.
  */
-OdinReturnCode odin_room_update_user_data(OdinRoomHandle room,
-                                          enum OdinUserDataTarget target,
-                                          const uint8_t *user_data,
-                                          size_t user_data_length);
+OdinReturnCode odin_room_update_peer_user_data(OdinRoomHandle room,
+                                               const uint8_t *user_data,
+                                               size_t user_data_length);
 
 /**
  * Updates the three-dimensional position of the current peer within the specified `OdinRoomHandle`.
