@@ -747,7 +747,7 @@ int main(int argc, const char *argv[])
     /*
      * Set some initial user data for our peer
      */
-    error = odin_room_update_user_data(room, OdinUserDataTarget_Peer, (uint8_t *)user_data, strlen(user_data));
+    error = odin_room_update_peer_user_data(room, (uint8_t *)user_data, strlen(user_data));
     if (odin_is_error(error))
     {
         print_error(error, "Failed to set user data");
