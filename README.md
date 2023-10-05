@@ -222,12 +222,12 @@ When enabled, the gain controller will bring the input audio signal to an approp
 
 ### User Data
 
-Each peer within a room is associated with a unique user data represented as a byte array (`uint8_t *`). This data is synchronized automatically across all peers, facilitating the storage of bespoke information for every individual peer and, if necessary, on a global scale for the room itself. Peers have the autonomy to modify their respective user data at any juncture, inclusive of before room entry to set an initial user data value.
+Each peer within a room is associated with a unique user data represented as a byte array (`uint8_t *`). This data is synchronized automatically across all peers, facilitating the storage of bespoke information for every individual peer. Peers have the autonomy to modify their respective user data at any juncture, inclusive of before room entry to set an initial user data value.
 
 ```c
 char *user_data = "{\"foo\":\"bar\"}";
 
-odin_room_update_user_data(room, OdinUserDataTarget_Peer, (uint8_t *)user_data, strlen(user_data));
+odin_room_update_peer_user_data(room, (uint8_t *)user_data, strlen(user_data));
 ```
 
 ### Messages
