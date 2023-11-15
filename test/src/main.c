@@ -202,7 +202,7 @@ int read_access_key_file(const char *file_name, char *access_key)
     {
         return -1;
     }
-    fgets(access_key, 128, file);
+    fgets(access_key, 45, file);
     int error = ferror(file);
     fclose(file);
     return error;
