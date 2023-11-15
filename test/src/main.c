@@ -100,17 +100,6 @@ OdinApmConfig apm_config = {
 };
 
 /**
- * @brief Custom struct used to send data over the network in this example.
- * @note  Please keep in mind that padding and alignment of structs may differ between platforms so make sure to take care of
- *        packing accordingly to assure compatibility.
- */
-struct MyMessage
-{
-    int32_t foo;
-    int32_t bar;
-};
-
-/**
  * @Brief Custom struct to store information about available audio devices from miniaudio.
  */
 typedef struct
@@ -445,14 +434,6 @@ void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
         // Print information about the media activity update to the console
         printf("Peer(%" PRIu64 ") %s sending data on Media(%d)\n", peer_id, state, media_id);
     }
-    else if (event->tag == OdinEvent_MessageReceived)
-    {
-        uint64_t peer_id = event->message_received.peer_id;
-        size_t data_len = event->message_received.data_len;
-
-        // Print information about the data we've received to the console
-        printf("Peer(%" PRIu64 ") sent a message with %zu bytes\n", peer_id, data_len);
-    }
 }
 
 /**
@@ -467,29 +448,15 @@ void handle_audio_data(ma_device *device, void *output, const void *input, ma_ui
 {
     if (device->type == ma_device_type_capture && input_stream)
     {
-        /*
-         * Push audio buffer from miniaudio callback to ODIN input stream
-         */
+        // Push audio buffer from miniaudio callback to ODIN input stream
         int sample_count = frame_count * device->capture.channels;
         odin_audio_push_data(input_stream, input, sample_count);
     }
     else if (device->type == ma_device_type_playback && output_streams_len)
     {
-        /**
-         * Walk through list of ODIN output streams to read and mix their data into the miniaudio output buffer
-         */
+        // Mix data from available ODIN output streams into the miniaudio output buffer
         int sample_count = frame_count * device->playback.channels;
-        float *samples = malloc(sample_count * sizeof(float));
-        for (size_t i = 0; i < output_streams_len; i++)
-        {
-            odin_audio_read_data(output_streams[i], samples, sample_count);
-            for (size_t i = 0; i < sample_count; ++i)
-            {
-                ((float *)output)[i] += samples[i];
-            }
-        }
-        odin_audio_process_reverse(room, (float *)output, frame_count);
-        free(samples);
+        odin_audio_mix_streams(room, output_streams, output_streams_len, output, sample_count);
     }
 }
 
@@ -787,19 +754,6 @@ int main(int argc, const char *argv[])
     {
         print_error(error, "Failed to add media stream");
         return 1;
-    }
-
-    /*
-     * Send some arbitrary data to all peers in the room
-     */
-    struct MyMessage msg = {
-        .foo = 1,
-        .bar = 2,
-    };
-    error = odin_room_send_message(room, NULL, 0, (uint8_t *)&msg, sizeof(msg));
-    if (odin_is_error(error))
-    {
-        print_error(error, "Failed to send message");
     }
 
     /*
