@@ -22,7 +22,7 @@ include(FetchContent)
 FetchContent_Declare(
     miniaudio
     GIT_REPOSITORY https://github.com/mackron/miniaudio.git
-    GIT_TAG        3898fff8ed923e118326bf07822961d222cb2a9a # version 0.11.18
+    GIT_TAG        3b50a854ec16c273a6bafd13cfd1ef159e48ce7e # version 0.11.20
     DOWNLOAD_DIR   ${MINIAUDIO_DIR}
     SOURCE_DIR     ${MINIAUDIO_DIR}
 )
