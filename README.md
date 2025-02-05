@@ -292,8 +292,6 @@ The `-s` argument (or `--server-url`) allows you to specify an alternate ODIN se
 ## Resources
 
 - [Documentation](https://www.4players.io/developers/)
-- [Examples](https://www.4players.io/odin/examples/)
-- [Frequently Asked Questions](https://www.4players.io/odin/faq/)
 - [Pricing](https://www.4players.io/odin/pricing/)
 
 ## Troubleshooting
@@ -302,9 +300,7 @@ Contact us through the listed methods below to receive answers to your questions
 
 ### Discord
 
-Join our official Discord server to chat with us directly and become a part of the 4Players ODIN community.
-
-[![Join us on Discord](https://developers.4players.io/images/join_discord.png)](https://4np.de/discord)
+Join our [official Discord server](https://4np.de/discord) to chat with us directly and become a part of the 4Players ODIN community.
 
 ### Twitter
 
