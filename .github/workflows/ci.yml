@@ -18,7 +18,7 @@ jobs:
           cmake --build . --config Release
           cp Release/odin_minimal.exe .
       - name: Upload Job Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: odin-minimal-windows-x86_64
           path: |
@@ -40,7 +40,7 @@ jobs:
           make
           patchelf --set-rpath '$ORIGIN' ./odin_minimal
       - name: Upload Job Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: odin-minimal-linux-x86_64
           path: |
@@ -61,7 +61,7 @@ jobs:
           cmake .. -DCMAKE_BUILD_TYPE=Release
           make
       - name: Upload Job Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: odin-minimal-macos-x86_64
           path: |
