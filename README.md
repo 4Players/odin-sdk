@@ -177,10 +177,9 @@ OdinApmConfig apm_config = {
     .volume_gate_release_loudness = -40,
     .echo_canceller = true,
     .high_pass_filter = false,
-    .pre_amplifier = false,
     .noise_suppression_level = OdinNoiseSuppressionLevel_Moderate,
     .transient_suppressor = false,
-    .gain_controller = true,
+    .gain_controller_version = OdinGainControllerVersion_V2,
 };
 
 odin_room_configure_apm(room, apm_config);
@@ -207,10 +206,6 @@ When enbabled, the noise suppressor will remove distracting background noise fro
 #### High-Pass Filter (HPF)
 
 When enabled, the high-pass filter will remove low-frequency content from the input audio signal, thus making it sound cleaner and more focused.
-
-#### Preamplifier
-
-When enabled, the preamplifier will boost the signal of sensitive microphones by taking really weak audio signals and making them louder.
 
 #### Transient Suppression
 
