@@ -575,7 +575,6 @@ int main(int argc, const char *argv[])
     int opt_apm_use_volume_gate = 1;
     int opt_apm_use_echo_canceller = 1;
     int opt_apm_use_high_pass_filter = 1;
-    int opt_apm_use_pre_amplifier = 1;
     int opt_apm_use_transient_suppressor = 1;
     int opt_apm_gain_controller_version = apm_config.gain_controller_version;
     int opt_apm_noise_suppression_level = apm_config.noise_suppression_level;
@@ -607,7 +606,6 @@ int main(int argc, const char *argv[])
         OPT_INTEGER('\0', "noise-suppression-level", &opt_apm_noise_suppression_level, "aggressiveness of noise suppression (0-5)", NULL, 0, 0),
         OPT_BOOLEAN('\0', "echo-canceller", &opt_apm_use_echo_canceller, "enable or disable echo cancellation", NULL, 0, 0),
         OPT_BOOLEAN('\0', "high-pass-filter", &opt_apm_use_high_pass_filter, "enable or disable high-pass filtering", NULL, 0, 0),
-        OPT_BOOLEAN('\0', "pre-amplifier", &opt_apm_use_pre_amplifier, "enable or disable pre-amplification", NULL, 0, 0),
         OPT_BOOLEAN('\0', "transient-suppressor", &opt_apm_use_transient_suppressor, "enable or disable transient suppression", NULL, 0, 0),
         OPT_INTEGER('\0', "gain-controller", &opt_apm_gain_controller_version, "version of the gain controller to use (0-2)", NULL, 0, 0),
         OPT_END(),
