@@ -10,6 +10,11 @@
 #include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <time.h>
+#endif
 
 #include "argparse.h"
 #include "miniaudio.h"
@@ -18,6 +23,8 @@
 OdinRoomHandle room;
 OdinMediaStreamHandle input_stream;
 OdinMediaStreamHandle output_streams[512];
+double global_input_delay = 0.0;
+double global_output_delay = 0.0;
 size_t output_streams_len = 0;
 
 /**
@@ -93,10 +100,9 @@ OdinApmConfig apm_config = {
     .volume_gate_release_loudness = -40,
     .echo_canceller = true,
     .high_pass_filter = false,
-    .pre_amplifier = false,
     .noise_suppression_level = OdinNoiseSuppressionLevel_Moderate,
     .transient_suppressor = false,
-    .gain_controller = true,
+    .gain_controller_version = OdinGainControllerVersion_V2,
 };
 
 /**
@@ -109,6 +115,24 @@ typedef struct
     ma_device_info *input_devices;
     ma_uint32 input_devices_count;
 } AudioDeviceList;
+
+/**
+ * @brief Retrieves the current time in milliseconds.
+ */
+double get_time_ms(void)
+{
+#ifdef _WIN32
+    LARGE_INTEGER frequency;
+    LARGE_INTEGER counter;
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&counter);
+    return (double)counter.QuadPart * 1000.0 / frequency.QuadPart;
+#else
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return now.tv_sec * 1000.0 + now.tv_nsec / 1e6;
+#endif
+}
 
 /**
  * @brief Basic helper function to print formatted error messages to standard error I/O.
@@ -448,15 +472,24 @@ void handle_audio_data(ma_device *device, void *output, const void *input, ma_ui
 {
     if (device->type == ma_device_type_capture && input_stream)
     {
+        // Update the echo cancellation reverse stream delay using measured processing delays (ideally should include hardware devices latency)
+        odin_audio_set_stream_delay(room, global_input_delay + global_output_delay);
+
         // Push audio buffer from miniaudio callback to ODIN input stream
+        double t_capture = get_time_ms();
         int sample_count = frame_count * device->capture.channels;
         odin_audio_push_data(input_stream, input, sample_count);
+        double t_process = get_time_ms();
+        global_input_delay = t_process - t_capture;
     }
     else if (device->type == ma_device_type_playback && output_streams_len)
     {
         // Mix data from available ODIN output streams into the miniaudio output buffer
+        double t_analyze = get_time_ms();
         int sample_count = frame_count * device->playback.channels;
         odin_audio_mix_streams(room, output_streams, output_streams_len, output, sample_count);
+        double t_renders = get_time_ms();
+        global_output_delay = t_renders - t_analyze;
     }
 }
 
@@ -544,7 +577,7 @@ int main(int argc, const char *argv[])
     int opt_apm_use_high_pass_filter = 1;
     int opt_apm_use_pre_amplifier = 1;
     int opt_apm_use_transient_suppressor = 1;
-    int opt_apm_use_gain_controller = 1;
+    int opt_apm_gain_controller_version = apm_config.gain_controller_version;
     int opt_apm_noise_suppression_level = apm_config.noise_suppression_level;
     struct argparse argparse;
     struct argparse_option options[] = {
@@ -576,7 +609,7 @@ int main(int argc, const char *argv[])
         OPT_BOOLEAN('\0', "high-pass-filter", &opt_apm_use_high_pass_filter, "enable or disable high-pass filtering", NULL, 0, 0),
         OPT_BOOLEAN('\0', "pre-amplifier", &opt_apm_use_pre_amplifier, "enable or disable pre-amplification", NULL, 0, 0),
         OPT_BOOLEAN('\0', "transient-suppressor", &opt_apm_use_transient_suppressor, "enable or disable transient suppression", NULL, 0, 0),
-        OPT_BOOLEAN('\0', "gain-controller", &opt_apm_use_gain_controller, "enable or disable automatic gain control", NULL, 0, 0),
+        OPT_INTEGER('\0', "gain-controller", &opt_apm_gain_controller_version, "version of the gain controller to use (0-2)", NULL, 0, 0),
         OPT_END(),
     };
     argparse_init(&argparse, options, usages, 0);
@@ -587,7 +620,7 @@ int main(int argc, const char *argv[])
     adjust_apm_option(&apm_config.echo_canceller, opt_apm_use_echo_canceller);
     adjust_apm_option(&apm_config.high_pass_filter, opt_apm_use_high_pass_filter);
     adjust_apm_option(&apm_config.transient_suppressor, opt_apm_use_transient_suppressor);
-    adjust_apm_option(&apm_config.gain_controller, opt_apm_use_gain_controller);
+    apm_config.gain_controller_version = fmax(OdinGainControllerVersion_None, fmin(OdinGainControllerVersion_V2, opt_apm_gain_controller_version));
     apm_config.noise_suppression_level = fmax(OdinNoiseSuppressionLevel_None, fmin(OdinNoiseSuppressionLevel_VeryHigh, opt_apm_noise_suppression_level));
     audio_output_config.sample_rate = fmax(8000, fmin(192000, audio_output_config.sample_rate));
     audio_output_config.channel_count = fmax(1, fmin(2, audio_output_config.channel_count));
