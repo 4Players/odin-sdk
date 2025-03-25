@@ -1,7 +1,7 @@
 ![ODIN](https://www.4players.io/images/odin/banner.jpg)
 
 [![Releases](https://img.shields.io/github/release/4Players/odin-sdk)](https://github.com/4Players/odin-sdk/releases)
-[![Documentation](https://img.shields.io/badge/docs-4Players.io-orange)](https://www.4players.io/developers/)
+[![Documentation](https://img.shields.io/badge/docs-4Players.io-orange)](https://docs.4players.io/voice)
 [![Twitter](https://img.shields.io/badge/twitter-@ODIN4Players-blue)](https://twitter.com/ODIN4Players)
 
 # 4Players ODIN SDK
@@ -278,7 +278,7 @@ odin_minimal -r <room_id> -k <access_key> -s <server_url>
 
 The `-r` argument (or `--room-id`) is used to specify the name of the room to join. If no room name is provided, the client will automatically join a room called **default**.
 
-The `-k` argument (or `--access-key`) is used to specify an access key for generating tokens. If no access key is provided, the test client will auto-generate a key and display it in the console. An access key is a unique authentication key used to generate room tokens for accessing the 4Players ODIN server network. It is important to use the same access key for all clients that wish to join the same ODIN room. For more information about access keys, please refer to our [documentation](https://developers.4players.io/odin/guides/access-keys/).
+The `-k` argument (or `--access-key`) is used to specify an access key for generating tokens. If no access key is provided, the test client will auto-generate a key and display it in the console. An access key is a unique authentication key used to generate room tokens for accessing the 4Players ODIN server network. It is important to use the same access key for all clients that wish to join the same ODIN room. For more information about access keys, please refer to our [documentation](https://docs.4players.io/voice/introduction/access-keys/).
 
 The `-s` argument (or `--server-url`) allows you to specify an alternate ODIN server address. This address can be either the URL to an ODIN gateway or an ODIN server. You may need to specify an alternate server if you are hosting your own fleet of ODIN servers. If you do not specify an ODIN server URL, the test client will use the default gateway, which is located at **https://gateway.odin.4players.io**.
 
@@ -286,8 +286,8 @@ The `-s` argument (or `--server-url`) allows you to specify an alternate ODIN se
 
 ## Resources
 
-- [Documentation](https://www.4players.io/developers/)
-- [Pricing](https://www.4players.io/odin/pricing/)
+- [Documentation](https://docs.4players.io/voice/)
+- [Pricing](https://odin.4players.io/pricing/)
 
 ## Troubleshooting
 
@@ -297,10 +297,6 @@ Contact us through the listed methods below to receive answers to your questions
 
 Join our [official Discord server](https://4np.de/discord) to chat with us directly and become a part of the 4Players ODIN community.
 
-### Twitter
-
-Have a quick question? Tweet us at [@ODIN4Players](https://twitter.com/ODIN4Players) and we’ll help you resolve any issues.
-
 ### Email
 
-Don’t use Discord or Twitter? Send us an [email](mailto:odin@4players.io) and we’ll get back to you as soon as possible.
+Don’t use Discord or X? Send us an [email](mailto:odin@4players.io) and we’ll get back to you as soon as possible.
