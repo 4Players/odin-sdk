@@ -13,16 +13,18 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
 - [Supported Platforms](#supported-platforms)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
-  - [Quick Start](#quick-start)
-  - [Authentication](#authentication)
-  - [Connection Pooling](#connection-pooling)
-  - [Audio Encoding and Decoding](#audio-encoding-and-decoding)
-  - [Audio Pipelines & Effects](#audio-pipelines-and-effects)
-  - [Media Stream Signaling](#media-stream-signaling)
-  - [User Data](#user-data)
-  - [Proximity Chat](#proximity-chat)
-  - [Messages](#messages)
-  - [End-to-End Encryption](#end-to-end-encryption-cipher)
+   - [Quick Start](#quick-start)
+   - [Authentication](#authentication)
+   - [Connection Pooling](#connection-pooling)
+      - [Voice Data Handling](#voice-data-handling)
+      - [Event Handling](#event-handling)
+   - [Audio Encoding and Decoding](#audio-encoding-and-decoding)
+   - [Audio Pipelines & Effects](#audio-pipelines-and-effects)
+   - [Media Stream Signaling](#media-stream-signaling)
+   - [User Data](#user-data)
+   - [Proximity Chat](#proximity-chat)
+   - [Messages](#messages)
+   - [End-to-End Encryption](#end-to-end-encryption-cipher)
 - [Resources](#resources)
 - [Troubleshooting](#troubleshooting)
 
@@ -405,7 +407,7 @@ odin_room_send_rpc(room, rpc.data(), rpc.size());
 
 ### Proximity Chat
 
-ODIN includes built-in support for proximity-based voice communication, allowing peers in the same room to only "hear" each other if they are within a defined virtual range. This feature enables scalable spatial audio systems for games, simulations, and virtual environments—without requiring you to manually filter streams or manage decoder state.
+ODIN includes built-in support for proximity-based voice communication, allowing peers in the same room to only "hear" each other if they are within a defined virtual range. This feature enables scalable spatial audio systems for games, simulations, and virtual environments - without requiring you to manually filter streams or manage decoder state.
 
 Each peer can publish a 3D position vector using the `SetPeerPosition` command. The ODIN server uses these positions to automatically cull audio streams between peers based on proximity. If two peers are beyond a defined distance threshold, the server will stop delivering audio packets between them. This behavior reduces bandwidth and CPU usage for large rooms and supports dynamic, spatially-aware voice chat without manual filtering on the client side.
 
@@ -470,6 +472,7 @@ The encryption system uses a master key derived from the password, then derives 
 
 - [Documentation](https://docs.4players.io/voice/)
 - [Frequently Asked Questions](https://docs.4players.io/voice/faq/)
+- [Logos and Branding](https://docs.4players.io/voice/branding/)
 - [Pricing](https://odin.4players.io/pricing/)
 
 ## Troubleshooting
