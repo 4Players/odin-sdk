@@ -18,6 +18,10 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
   - [Connection Pooling](#connection-pooling)
   - [Audio Encoding and Decoding](#audio-encoding-and-decoding)
   - [Audio Pipelines & Effects](#audio-pipelines-and-effects)
+  - [Media Stream Signaling](#media-stream-signaling)
+  - [User Data](#user-data)
+  - [Proximity Chat](#proximity-chat)
+  - [Messages](#messages)
   - [End-to-End Encryption](#end-to-end-encryption-cipher)
 - [Resources](#resources)
 - [Troubleshooting](#troubleshooting)
@@ -313,10 +317,140 @@ void my_effect_callback(float *samples, uint32_t sample_count, bool *is_silent, 
 }
 
 uint32_t effect_id;
-odin_pipeline_insert_custom_effect(pipeline, 2, my_effect_callback, user_data, &effect_id);
+odin_pipeline_insert_custom_effect(pipeline, index, my_effect_callback, user_data, &effect_id);
 ```
 
 You can remove or reorder effects dynamically as needed. All modifications are thread-safe and take effect immediately.
+
+### Media Stream Signaling
+
+Media stream signaling in ODIN enables applications to explicitly coordinate when to start and stop voice data transmission and reception. This ensures that clients can allocate resources like decoders or mute specific streams efficiently based on actual communication intent.
+
+#### Starting a Media (Sender Side)
+
+The `StartMedia` command is invoked by a sender to signal their intent to start transmitting audio on a given `media_id`. This allows remote clients to create and prepare ODIN decoders and audio pipelines accordingly.
+
+```cpp
+using namespace nlohmann;
+
+json payload = {{"media_id", media_id}, {"properties", {{"kind", "audio"}}}};
+json command = {0, 0, "StartMedia", payload};
+
+auto rpc = json::to_msgpack(command);
+
+odin_room_send_rpc(room, rpc.data(), rpc.size());
+```
+
+#### Stopping a Media (Sender Side)
+
+Use `StopMedia` when a sender is no longer transmitting on a `media_id`. This prompts remote clients to clean up and free decoders associated with that stream.
+
+```cpp
+using namespace nlohmann;
+
+json payload = {{"media_id", media_id}};
+json command = {0, 0, "StopMedia", payload};
+
+auto rpc = json::to_msgpack(command);
+
+odin_room_send_rpc(room, rpc.data(), rpc.size());
+```
+
+#### Pausing a Media (Receiver Side)
+
+The `PauseMedia` command is used by a client to request that the server temporarily stops delivering voice data from a specific `media_id`. It works like a server-side mute for a given stream from another user, and is entirely local to the requesting client.
+
+```cpp
+using namespace nlohmann;
+
+json payload = {{"media_id", media_id}};
+json command = {0, 0, "PauseMedia", payload};
+
+auto rpc = json::to_msgpack(command);
+
+odin_room_send_rpc(room, rpc.data(), rpc.size());
+```
+
+#### Resuming a Media (Receiver Side)
+
+The `ResumeMedia` command reverses the effect of `PauseMedia`, telling the server to resume sending voice data for the specified `media_id`.
+
+```cpp
+using namespace nlohmann;
+
+json payload = {{"media_id", media_id}};
+json command = {0, 0, "ResumeMedia", payload};
+
+auto rpc = json::to_msgpack(command);
+
+odin_room_send_rpc(room, rpc.data(), rpc.size());
+```
+
+### User Data
+
+Each peer in an ODIN room is associated with a custom, user-defined user data payload, represented as a binary byte array (`uint8_t *`). This data is automatically synchronized across all connected peers and serves as a flexible mechanism to store and share metadata per peer—such as usernames, avatars, roles, team assignments, mute flags or gameplay state.
+
+You can set an initial value when joining a room using `odin_room_create_ex()` or dynamically update it later using the `UpdatePeer` command.
+
+```cpp
+using namespace nlohmann;
+
+json payload = {{"user_data", user_data_bin}};
+json command = {0, 0, "UpdatePeer", payload};
+
+auto rpc = json::to_msgpack(command);
+
+odin_room_send_rpc(room, rpc.data(), rpc.size());
+```
+
+### Proximity Chat
+
+ODIN includes built-in support for proximity-based voice communication, allowing peers in the same room to only "hear" each other if they are within a defined virtual range. This feature enables scalable spatial audio systems for games, simulations, and virtual environments—without requiring you to manually filter streams or manage decoder state.
+
+Each peer can publish a 3D position vector using the `SetPeerPosition` command. The ODIN server uses these positions to automatically cull audio streams between peers based on proximity. If two peers are beyond a defined distance threshold, the server will stop delivering audio packets between them. This behavior reduces bandwidth and CPU usage for large rooms and supports dynamic, spatially-aware voice chat without manual filtering on the client side.
+
+To define your position when joining a room, pass a 3-element `float` array to `odin_room_create_ex()`:
+
+```cpp
+float position[3] = {0.0, 0.0, 0.0};
+
+OdinRoom *room;
+odin_room_create_ex(pool, "<SERVER_URL>", "<TOKEN>", NULL, user_data, user_data_length, position, NULL, &room);
+```
+
+This will ensure the server correctly filters incoming voice data as soon as the connection is established. To change your position while connected, send a `SetPeerPosition` command. This can be triggered periodically or when your character moves in the game world:
+
+```cpp
+using namespace nlohmann;
+
+json payload = {{"position", position_arr}};
+json command = {0, 0, "SetPeerPosition", payload};
+
+auto rpc = json::to_msgpack(command);
+
+odin_room_send_rpc(room, rpc.data(), rpc.size());
+```
+
+**Note:** The default cutoff range is a unit sphere radius of `1.0` and position values should be scaled accordingly. If your game world uses different units (e.g. meters or grid cells), you must scale the coordinates manually before sending.
+
+### Messages
+
+ODIN supports sending arbitrary application-level messages between peers in a room. These messages are delivered reliably and in-order via the signaling channel and are ideal for non-audio communication such as gameplay state updates, chat messages, ready checks or custom control flags. Messages are represented as a binary payload (`uint8_t *`) and are **entirely application-defined**. You can use any format you like — raw bytes, JSON, MessagePack, Protocol Buffers, etc.
+
+You can choose to target specific peers by providing a list of `uint64_t` peer IDs or broadcast to all peers by omitting `target_peer_ids`. Messages sent via `SendMessage` are received through the `on_rpc` callback.
+
+```cpp
+using namespace nlohmann;
+
+json payload = {{"message", message_bin}, {"target_peer_ids", target_peer_ids}};
+json command = {0, 0, "SendMessage", payload};
+
+auto rpc = json::to_msgpack(command);
+
+odin_room_send_rpc(room, rpc.data(), rpc.size());
+```
+
+**Note:** Messages are delivered to all specified targets regardless of proximity. Even if a peer has moved out of range using `SetPeerPosition`, messages are still received.
 
 ### End-to-End Encryption (Cipher)
 
@@ -326,6 +460,7 @@ ODIN supports end-to-end encryption (E2EE) through the use of a pluggable `OdinC
 OdinCipher *cipher = odin_crypto_create(ODIN_CRYPTO_VERSION);
 odin_crypto_set_password(cipher, (const uint8_t *)"secret", strlen("secret"));
 
+OdinRoom *room;
 odin_room_create_ex(pool, "<SERVER_URL>", "<TOKEN>", NULL, user_data, user_data_length, position, cipher, &room);
 ```
 
