@@ -156,15 +156,17 @@ void on_datagram(uint64_t room_ref, uint16_t media_id, const uint8_t *bytes, uin
 
 #### Event Handling
 
-Control and event messages are delivered through the `on_rpc` callback. These messages are encoded using the [MessagePack](https://msgpack.org) format for compact and efficient transmission. To decode and handle them, you can use libraries like [msgpack-c](https://github.com/msgpack/msgpack-c) for low-level access or [nlohmann::json](https://github.com/nlohmann/json) with MessagePack support for a more convenient, high-level JSON-like interface - ideal for prototyping and rapid development.
+Control and event messages are delivered through the `on_rpc` callback. These messages are encoded using the [MessagePack-RPC](https://github.com/msgpack-rpc/msgpack-rpc/blob/master/spec.md) format for compact and efficient transmission. To decode and handle them, you can use libraries like [msgpack-c](https://github.com/msgpack/msgpack-c) for low-level access or [nlohmann::json](https://github.com/nlohmann/json) with [MessagePack](https://msgpack.org) support for a more convenient, high-level JSON-like interface - ideal for prototyping and rapid development.
 
 ```cpp
+using namespace nlohmann;
+
 void on_rpc(uint64_t room_ref, const uint8_t *bytes, uint32_t bytes_length, void *user_data) {
    const auto state = reinterpret_cast<State *>(user_data);
    assert(odin_room_get_ref(state->room.get()) == room_ref);
 
    try {
-      nlohmann::json rpc = nlohmann::json::from_msgpack(bytes, bytes + bytes_length);
+      json rpc = json::from_msgpack(bytes, bytes + bytes_length);
       std::cout << "event: " << rpc.dump() << std::endl;
    } catch (const std::exception &err) {
       std::cerr << "error: " << err.what() << std::endl;
