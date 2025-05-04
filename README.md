@@ -15,12 +15,9 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
 - [Usage](#usage)
   - [Quick Start](#quick-start)
   - [Authentication](#authentication)
-  - [Event Handling](#event-handling)
-  - [Media Streams](#media-streams)
-  - [Audio Processing](#audio-processing)
-  - [User Data](#user-data)
-  - [Messages](#messages)
-- [Testing](#testing)
+  - [Connection Pooling](#connection-pooling)
+  - [Audio Encoding and Decoding](#audio-encoding-and-decoding)
+  - [Audio Pipelines & Effects](#audio-pipelines-and-effects)
 - [Resources](#resources)
 - [Troubleshooting](#troubleshooting)
 
@@ -67,14 +64,26 @@ The following code snippet illustrates how to join a designated room on a specif
 
 int main(int argc, const char *argv[])
 {
-    odin_startup(ODIN_VERSION);
+   odin_initialize(ODIN_VERSION);
 
-    OdinRoomHandle room = odin_room_create();
-    odin_room_join(room, "<SERVER_URL>", "<TOKEN>");
+   OdinConnectionPool *pool;
+   OdinConnectionPoolSettings settings = {
+      .on_datagram = NULL,
+      .on_rpc = NULL,
+      .user_data = NULL
+   };
+   odin_connection_pool_create(settings, &pool);
 
-    getchar();
+   OdinRoom *room;
+   odin_room_create(pool, "<SERVER_URL>", "<TOKEN>", &room);
 
-    return 0;
+   getchar();
+
+   odin_room_free(room);
+   odin_connection_pool_free(pool);
+   odin_shutdown();
+
+   return 0;
 }
 ```
 
@@ -82,211 +91,249 @@ int main(int argc, const char *argv[])
 
 To enter a room, an authentication token is requisite. ODIN employs the creation of signed JSON Web Tokens (JWT) to ensure a secure authentication pathway. These tokens encapsulate the details of the room(s) you wish to join alongside a customizable identifier for the user, which can be leveraged to reference an existing record within your specific service.
 
-```c
+```cpp
+OdinTokenGenerator *generator;
+odin_token_generator_create("<ACCESS_KEY>", &generator);
+
 char token[512];
+odin_token_generator_sign(generator, payload, token, sizeof(token));
 
-OdinTokenGenerator *generator = odin_token_generator_create("<ACCESS_KEY>");
+odin_token_generator_free(generator);
+```
 
-odin_token_generator_create_token_ex(generator, "<ROOM_ID>", "<USER_ID>", token, sizeof(token));
+The minimal payload of an ODIN token looks like this:
+
+```jsonc
+{
+   "rid": "foo",      // customer-speficied room ID
+   "uid": "bar",      // customer-speficied user ID as reference
+   "exp": 1669852860, // token expiration date
+   "nbf": 1669852800  // token activation time  
+}
 ```
 
 As ODIN is fully user agnostic, [4Players GmbH](https://www.4players.io/) does not store any of this information on its servers.
 
 Tokens are signed employing an Ed25519 key pair derived from your distinctive access key. Think of an access key as a singular, unique authentication credential, crucial for generating room tokens to access the ODIN server network. It essentially combines the roles of a username and password into a singular, unobtrusive string of characters, necessitating a comparable degree of protection. For bolstered security, it is strongly recommended to refrain from incorporating an access key in your client-side code. We've created a very basic [Node.js](https://www.4players.io/odin/examples/token-server/) server here, to showcase how to issue ODIN tokens to your client apps without exposing your access key.
 
-### Event Handling
+### Connection Pooling
 
-The ODIN API operates on an event-driven paradigm. In order to manage events, it's necessary to create a callback function in the following manner:
+ODIN uses connection pooling to manage all network communication and event routing between your application and the ODIN server infrastructure. A connection pool allows you to reuse connections across multiple rooms and ensures thread-safe event dispatching.
 
-```c
-void handle_odin_event(OdinRoomHandle room, const OdinEvent *event, void *data)
-{
-   switch (event->tag)
-   {
-      case OdinEvent_RoomConnectionStateChanged:
-         // Triggered when the room's connectivity state transitions
-         break;
-      case OdinEvent_Joined:
-         // Triggered post successful room entry, rendering the initial state fully accessible
-         break;
-      case OdinEvent_RoomUserDataChanged:
-         // Triggered when the room's arbitrary user data changed
-         break;
-      case OdinEvent_PeerJoined:
-         // Triggered when a new user enters the room
-         break;
-      case OdinEvent_PeerLeft:
-         // Triggered when a user exits the room
-         break;
-      case OdinEvent_PeerUserDataChanged:
-         // Triggered when a peers's arbitrary user data changed
-         break;
-      case OdinEvent_MediaAdded:
-         // Triggered when a peer introduces a media stream into the room
-         break;
-      case OdinEvent_MediaRemoved:
-         // Triggered when a peer withdraws a media stream from the room
-         break;
-      case OdinEvent_MediaActiveStateChanged:
-         // Triggered on change of media stream activity (e.g. user started/stopped talking)
-         break;
-      case OdinEvent_MessageReceived:
-         // Triggered upon receipt of a message containing arbitrary data from a peer
-         break;
-      default:
-         // Optionally handle unexpected events
-         break;
-    }
+```cpp
+OdinConnectionPool *pool;
+OdinConnectionPoolSettings settings = {
+    .on_datagram = &on_datagram, // for voice data
+    .on_rpc      = &on_rpc,      // for signaling and events
+    .user_data   = &state        // user-defined context passed to callbacks
+};
+odin_connection_pool_create(settings, &pool);
+```
+
+The `on_datagram` and `on_rpc` callbacks handle incoming data and control messages respectively.
+
+#### Voice Data Handling
+
+Voice data is delivered via the `on_datagram` callback. You should forward these datagrams to the appropriate ODIN decoder:
+
+```cpp
+void on_datagram(uint64_t room_ref, uint16_t media_id, const uint8_t *bytes, uint32_t bytes_length, void *user_data) {
+   const auto state = reinterpret_cast<State *>(user_data);
+   assert(odin_room_get_ref(state->room.get()) == room_ref);
+
+   if (auto it = state->decoders.find(media_id); it != state->decoders.end()) {
+      odin_decoder_push(it->second.ptr.get(), bytes, bytes_length);
+   }
 }
 ```
 
-To register your callback function as an handler for ODIN events for a room, use the following command:
+#### Event Handling
 
-```c
-odin_room_set_event_callback(room, handle_odin_event, NULL);
+Control and event messages are delivered through the `on_rpc` callback. These messages are encoded using the [MessagePack](https://msgpack.org) format for compact and efficient transmission. To decode and handle them, you can use libraries like [msgpack-c](https://github.com/msgpack/msgpack-c) for low-level access or [nlohmann::json](https://github.com/nlohmann/json) with MessagePack support for a more convenient, high-level JSON-like interface - ideal for prototyping and rapid development.
+
+```cpp
+void on_rpc(uint64_t room_ref, const uint8_t *bytes, uint32_t bytes_length, void *user_data) {
+   const auto state = reinterpret_cast<State *>(user_data);
+   assert(odin_room_get_ref(state->room.get()) == room_ref);
+
+   try {
+      nlohmann::json rpc = nlohmann::json::from_msgpack(bytes, bytes + bytes_length);
+      std::cout << "event: " << rpc.dump() << std::endl;
+   } catch (const std::exception &err) {
+      std::cerr << "error: " << err.what() << std::endl;
+   }
+}
 ```
 
-### Media Streams
+### Audio Encoding and Decoding
 
-Each peer within an ODIN room has the capability to attach media streams for the transmission of voice data. The snippet below illustrates the procedure to establish a new input media stream:
+ODIN separates audio transmission into two core components: *encoders* for outgoing streams and *decoders* for incoming ones. These components manage real-time audio conversion and transport between devices using a shared audio pipeline interface. They each encapsulate an Opus codec for compression/decompression as well as an ingress or egress resampler for automatic sample rate conversion.
 
-```c
-OdinAudioStreamConfig config = {
-    .sample_rate = 48000,
-    .channel_count = 1,
+Audio encoders and decoders are built to integrate tightly with the rest of the ODIN runtime and offer high performance and low latency. They provide flexible hooks for custom processing and allow seamless integration of advanced features like voice activity detection (VAD) and audio enhancements (APM).
+
+#### Encoders (Outgoing Audio)
+
+An encoder prepares raw PCM audio captured from local sources (typically a microphone) and transforms it into compressed ODIN datagrams. This data is then ready for network transmission.
+
+```cpp
+OdinEncoder *encoder;
+odin_encoder_create(sample_rate, stereo, &encoder);
+
+const OdinPipeline *pipeline = odin_encoder_get_pipeline(encoder);
+```
+
+Push captured audio into the encoder:
+
+```cpp
+odin_encoder_push(encoder, samples, sample_count); // samples must be float, interleaved, in [-1.0, 1.0]
+```
+
+Poll for encoded datagrams to send:
+
+```cpp
+for (;;) {
+   uint8_t datagram[2048];
+   uint32_t datagram_length = sizeof(datagram);
+   switch (odin_encoder_pop(encoder, &media_ids, media_ids_length, datagram, &datagram_length)) {
+      case ODIN_ERROR_SUCCESS:
+         odin_room_send_datagram(room, datagram, datagram_length);
+         break;
+      case ODIN_ERROR_NO_DATA:
+         return;
+      default:
+         std::cerr << "something went wrong" << std::endl;
+   };
+}
+```
+
+**Note:** You can assign the same encoder output to multiple rooms by specifying up to four media stream IDs.
+
+#### Decoders (Incoming Audio)
+
+A decoder receives and processes datagrams from remote peers. Each incoming media stream typically maps to one decoder instance:
+
+```cpp
+OdinDecoder *decoder;
+odin_decoder_create(media_id, sample_rate, stereo, &decoder);
+
+const OdinPipeline *pipeline = odin_decoder_get_pipeline(decoder);
+```
+
+Feed received datagrams into the decoder:
+
+```cpp
+odin_decoder_push(decoder, bytes, length);
+```
+
+Fetch decoded audio samples for playback:
+
+```cpp
+float samples[FRAME_SIZE];
+bool is_silent;
+odin_decoder_pop(decoder, samples, FRAME_SIZE, &is_silent);
+```
+
+**Note:** Decoders should be created and destroyed dynamically in response to peer update events such as `MediaStarted` or `MediaStopped`.
+
+### Audio Pipelines and Effects
+
+Each encoder and decoder in ODIN exposes an internal audio pipeline - a flexible and extensible processing chain that allows real-time manipulation of audio streams. Effects are applied in sequence to all audio flowing through the encoder or decoder. The pipeline automatically manages effect ordering internally, ensuring a consistent and logical execution flow.
+
+#### VAD (Voice Activity Detection) Effects
+
+The VAD module helps determine when a user is actively speaking. It provides two independent mechanisms:
+
+- **Voice Activity Detection:** \
+   When enabled, ODIN will analyze the audio input signal using smart voice detection algorithm to determine the presence of speech. You can define both the probability required to start and stop transmitting.
+- **Voice Volume Gate:** \
+   When enabled, the volume gate will measure the volume of the input audio signal, thus deciding when a user is speaking loud enough to transmit voice data. You can define both the root mean square power (dBFS) for when the gate should engage and disengage.
+
+```cpp
+uint32_t vad_id;
+odin_pipeline_insert_vad_effect(pipeline, index, &vad_id);
+
+OdinVadConfig config = {
+   .voice_activity = {
+      .enabled = true,
+      .attack_threshold = 0.9f,
+      .release_threshold = 0.8f
+   },
+   .volume_gate = {
+      .enabled = true,
+      .attack_threshold = -30,
+      .release_threshold = -40
+   }
 };
-
-OdinMediaStreamHandle stream = odin_audio_stream_create(config);
-
-odin_room_add_media(room, stream);
+odin_pipeline_set_vad_config(pipeline, vad_id, &config);
 ```
 
-For the handling of audio data through input/output media streams, employ the `odin_audio_push_data` and `odin_audio_read_data` functions. These functions enable the conveyance of audio data from your local microphone to your audio engine, and the playback of audio data received from other peers, respectively. For a comprehensive working example, refer to the [Testing](#testing) section below, which employs the [miniaudio](https://miniaud.io) library for cross-platform audio capture and playback.
+#### APM (Audio Processing Module) Effects
 
-### Audio Processing
+The APM module uses a variety of smart enhancement algorithms for enhancing audio clarity in noisy environments. It provides the following features:
 
-Each ODIN room handle is equipped with a dedicated Audio Processing Module (APM) responsible for executing a spectrum of audio filters including, but not limited to, echo cancellation, noise suppression, and sophisticated voice activity detection. This module is designed to accommodate on-the-fly adjustments, empowering you to fine-tune audio settings in real time to suit evolving conditions. The snippet below demonstrates how you might alter the APM settings:
+- **Acoustic Echo Cancellation (AEC):** \
+   When enabled the echo canceller will try to subtract echoes, reverberation, and unwanted added sounds from the audio input signal. Note, that you need to process the reverse audio stream, also known as the loopback data to be used in the ODIN echo canceller.
+- **Noise Suppression:** \
+   When enbabled, the noise suppressor will remove distracting background noise from the input audio signal. You can control the aggressiveness of the suppression. Increasing the level will reduce the noise level at the expense of a higher speech distortion.
+- **High-Pass Filter (HPF):** \
+   When enabled, the transient suppressor will try to detect and attenuate keyboard clicks.
+- **Transient Suppression:** \
+   When enabled, the high-pass filter will remove low-frequency content from the input audio signal, thus making it sound cleaner and more focused.
+- **Automatic Gain Control (AGC):** \
+   When enabled, the gain controller will bring the input audio signal to an appropriate range when it's either too loud or too quiet.
 
-```c
-OdinApmConfig apm_config = {
-    .voice_activity_detection = true,
-    .voice_activity_detection_attack_probability = 0.9,
-    .voice_activity_detection_release_probability = 0.8,
-    .volume_gate = false,
-    .volume_gate_attack_loudness = -30,
-    .volume_gate_release_loudness = -40,
+```cpp
+uint32_t apm_id;
+odin_pipeline_insert_apm_effect(pipeline, index, playback_sample_rate, stereo, &apm_id);
+
+OdinApmConfig config = {
     .echo_canceller = true,
-    .high_pass_filter = false,
-    .noise_suppression_level = OdinNoiseSuppressionLevel_Moderate,
-    .transient_suppressor = false,
-    .gain_controller_version = OdinGainControllerVersion_V2,
+    .high_pass_filter = true,
+    .transient_suppressor = true,
+    .noise_suppression_level = ODIN_NOISE_SUPPRESSION_LEVEL_MODERATE,
+    .gain_controller_version = ODIN_GAIN_CONTROLLER_VERSION_V2
 };
-
-odin_room_configure_apm(room, apm_config);
+odin_pipeline_set_apm_config(pipeline, apm_id, &config);
 ```
 
-The ODIN APM provides the following features:
+You can also push loopback (reverse) audio into the pipeline to support echo cancellation:
 
-#### Voice Activity Detection (VAD)
-
-When enabled, ODIN will analyze the audio input signal using smart voice detection algorithm to determine the presence of speech. You can define both the probability required to start and stop transmitting.
-
-#### Input Volume Gate
-
-When enabled, the volume gate will measure the volume of the input audio signal, thus deciding when a user is speaking loud enough to transmit voice data. You can define both the root mean square power (dBFS) for when the gate should engage and disengage.
-
-#### Acoustic Echo Cancellation (AEC)
-
-When enabled the echo canceller will try to subtract echoes, reverberation, and unwanted added sounds from the audio input signal. Note, that you need to process the reverse audio stream, also known as the loopback data to be used in the ODIN echo canceller.
-
-#### Noise Suppression
-
-When enbabled, the noise suppressor will remove distracting background noise from the input audio signal. You can control the aggressiveness of the suppression. Increasing the level will reduce the noise level at the expense of a higher speech distortion.
-
-#### High-Pass Filter (HPF)
-
-When enabled, the high-pass filter will remove low-frequency content from the input audio signal, thus making it sound cleaner and more focused.
-
-#### Transient Suppression
-
-When enabled, the transient suppressor will try to detect and attenuate keyboard clicks.
-
-#### Automatic Gain Control (AGC)
-
-When enabled, the gain controller will bring the input audio signal to an appropriate range when it's either too loud or too quiet.
-
-### User Data
-
-Each peer within a room is associated with a unique user data represented as a byte array (`uint8_t *`). This data is synchronized automatically across all peers, facilitating the storage of bespoke information for every individual peer. Peers have the autonomy to modify their respective user data at any juncture, inclusive of before room entry to set an initial user data value.
-
-```c
-char *user_data = "{\"foo\":\"bar\"}";
-
-odin_room_update_peer_user_data(room, (uint8_t *)user_data, strlen(user_data));
+```cpp
+odin_pipeline_update_apm_playback(pipeline, apm_id, reverse_samples, sample_count, delay_ms);
 ```
 
-### Messages
+#### Custom Effects
 
-ODIN allows you to send arbitrary to every other peer in the room or even individual targets. Just like user data, a message is a byte array (`uint8_t *`).
+ODIN allows you to define and insert your own audio processing functions. These run inline on the sample stream:
 
-**Note:** Messages are always sent to all targets in the room, even when they moved out of proximity using setPosition.
+```cpp
+void my_effect_callback(float *samples, uint32_t sample_count, bool *is_silent, const void *user_data) {
+   // modify samples or observe silence state
+}
 
-```c
-struct MyMessage msg = {
-   .foo = 1,
-   .bar = 2,
-};
-
-odin_room_send_message(room, NULL, 0, (uint8_t *)&msg, sizeof(msg));
+uint32_t effect_id;
+odin_pipeline_insert_custom_effect(pipeline, 2, my_effect_callback, user_data, &effect_id);
 ```
 
-## Testing
+You can remove or reorder effects dynamically as needed. All modifications are thread-safe and take effect immediately.
 
-In addition to the latest binaries and C header files, this repository also contains a simple test client in the `test` sub-directory. Please note, that the configure process will try to download, verify and extract dependencies (e.g. [miniaudio](https://miniaud.io)), which are specified in the `CMakeLists.txt` file. [miniaudio](https://miniaud.io) is used to provide basic audio capture and playback functionality in the test client.
+### End-to-End Encryption (Cipher)
 
-### Configuring and Building
+ODIN supports end-to-end encryption (E2EE) through the use of a pluggable `OdinCipher` module. This enables you to secure all datagrams, messages and peer user data with a shared room password - without relying on the server as a trust anchor.
 
-1. Create a build directory:  
-   `mkdir -p build && cd build`
+```cpp
+OdinCipher *cipher = odin_crypto_create(ODIN_CRYPTO_VERSION);
+odin_crypto_set_password(cipher, (const uint8_t *)"secret", strlen("secret"));
 
-2. Generate build scripts for your preferred build system:
-
-   - For _make_ ...  
-     `cmake ../`
-   - ... or for _ninja_ ...  
-     `cmake -GNinja ../`
-
-3. Build the test client:
-   - Using _make_ ...  
-     `make`
-   - ... or _ninja_ ...  
-     `ninja`
-
-On Windows, calling `cmake` from the build directory will create a _Visual Studio_ solution, which can be built using the following command:
-
-```bat
-msbuild odin_minimal.sln
+odin_room_create_ex(pool, "<SERVER_URL>", "<TOKEN>", NULL, user_data, user_data_length, position, cipher, &room);
 ```
 
-### Using the Test Client
-
-The test client accepts several arguments to control its functions, but the following three options are particularly crucial for its intended purpose:
-
-```text
-odin_minimal -r <room_id> -k <access_key> -s <server_url>
-```
-
-The `-r` argument (or `--room-id`) is used to specify the name of the room to join. If no room name is provided, the client will automatically join a room called **default**.
-
-The `-k` argument (or `--access-key`) is used to specify an access key for generating tokens. If no access key is provided, the test client will auto-generate a key and display it in the console. An access key is a unique authentication key used to generate room tokens for accessing the 4Players ODIN server network. It is important to use the same access key for all clients that wish to join the same ODIN room. For more information about access keys, please refer to our [documentation](https://docs.4players.io/voice/introduction/access-keys/).
-
-The `-s` argument (or `--server-url`) allows you to specify an alternate ODIN server address. This address can be either the URL to an ODIN gateway or an ODIN server. You may need to specify an alternate server if you are hosting your own fleet of ODIN servers. If you do not specify an ODIN server URL, the test client will use the default gateway, which is located at **https://gateway.odin.4players.io**.
-
-**Note:** You can use the `--help` argument to get a full list of options provided by the console client.
+The encryption system uses a master key derived from the password, then derives peer-specific session keys with random salts. These salts are exchanged in-room so that all participants can reconstruct each other's peer keys. The master key never leaves the client and there are no long-term keys stored or distributed. Keys are rotated automatically after every 1 million packets or 2 GiB of traffic. The system is designed to minimize passive and active compromise by external actors. If the password is kept secure, so is your data.
 
 ## Resources
 
 - [Documentation](https://docs.4players.io/voice/)
+- [Frequently Asked Questions](https://docs.4players.io/voice/faq/)
 - [Pricing](https://odin.4players.io/pricing/)
 
 ## Troubleshooting
