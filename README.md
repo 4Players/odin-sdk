@@ -18,6 +18,7 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
   - [Connection Pooling](#connection-pooling)
   - [Audio Encoding and Decoding](#audio-encoding-and-decoding)
   - [Audio Pipelines & Effects](#audio-pipelines-and-effects)
+  - [End-to-End Encryption](#end-to-end-encryption-cipher)
 - [Resources](#resources)
 - [Troubleshooting](#troubleshooting)
 
