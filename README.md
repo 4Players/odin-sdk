@@ -127,6 +127,8 @@ Tokens are signed employing an Ed25519 key pair derived from your distinctive ac
 
 ODIN uses connection pooling to manage all network communication and event routing between your application and the ODIN server infrastructure. A connection pool allows you to reuse connections across multiple rooms and ensures thread-safe event dispatching.
 
+To get started, create a connection pool and then use it to create a room:
+
 ```cpp
 OdinConnectionPool *pool;
 OdinConnectionPoolSettings settings = {
@@ -138,6 +140,17 @@ odin_connection_pool_create(settings, &pool);
 ```
 
 The `on_datagram` and `on_rpc` callbacks handle incoming data and control messages respectively.
+
+Next, create a room using the connection pool:
+
+```cpp
+OdinRoom *room;
+odin_room_create(pool, "<SERVER_URL>", "<TOKEN>", &room);
+```
+
+The `odin_room_create()` function constructs a new ODIN room with default parameters. It requires the connection pool, the URI of an ODIN gateway/server and a JSON Web Token (JWT) for user authentication. On success, it returns a room handle and immediately starts an asynchronous connection process so the local peer can join the room.
+
+**Note:** For advanced configuration options, refer to `odin_room_create_ex()`.
 
 #### Voice Data Handling
 
