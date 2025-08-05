@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.7.2"
+#define ODIN_VERSION "1.7.3"
 
 /**
  * Available versions of the automatic gain controller (AGC) to be used. This adjusts the audio

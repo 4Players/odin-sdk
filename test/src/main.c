@@ -726,7 +726,11 @@ int main(int argc, const char *argv[])
      * Initialize the ODIN runtime based on the global output config
      */
     printf("Initializing ODIN runtime %s\n", ODIN_VERSION);
-    odin_startup_ex(ODIN_VERSION, audio_output_config);
+    if (!odin_startup_ex(ODIN_VERSION, audio_output_config))
+    {
+        fprintf(stderr, "Failed to initialize ODIN runtime; missing prerequisites\n");
+        return 1;
+    }
 
     /*
      * Create a new local ODIN room handle in an unconnected state
