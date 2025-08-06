@@ -1,0 +1,71 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build_windows:
+    name: Build Test Client for Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          lfs: 'true'
+      - name: Configure and Build
+        run: |
+          mkdir -p test/build && cd test/build
+          cmake .. -G "Visual Studio 17 2022" -A x64
+          cmake --build . --config Release
+      - name: Upload Job Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: odin-test-client-windows-x86_64
+          path: |
+            test/build/Release/odin_client.exe
+            test/build/Release/odin.dll
+            test/build/Release/odin_crypto.dll
+
+  build_linux:
+    name: Build Test Client for Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          lfs: 'true'
+      - name: Configure and Build
+        run: |
+          mkdir -p test/build && cd test/build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make
+          patchelf --set-rpath '$ORIGIN' ./odin_client
+      - name: Upload Job Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: odin-test-client-linux-x86_64
+          path: |
+            test/build/odin_client
+            test/build/libodin.so
+            test/build/libodin_crypto.so
+
+  build_macos:
+    name: Build Test Client for macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          lfs: 'true'
+      - name: Configure and Build
+        run: |
+          mkdir -p test/build && cd test/build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make
+      - name: Upload Job Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: odin-test-client-macos-x86_64
+          path: |
+            test/build/odin_client
+            test/build/libodin.dylib
+            test/build/libodin_crypto.dylib
