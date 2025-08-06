@@ -2,6 +2,7 @@ build
 build-*
 deps
 *.user
+.cache
 .DS_Store
 .Spotlight-V100
 .Trashes

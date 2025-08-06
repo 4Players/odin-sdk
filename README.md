@@ -483,6 +483,50 @@ odin_room_create_ex(pool, "<SERVER_URL>", "<TOKEN>", NULL, user_data, user_data_
 
 The encryption system uses a master key derived from the password, then derives peer-specific session keys with random salts. These salts are exchanged in-room so that all participants can reconstruct each other's peer keys. The master key never leaves the client and there are no long-term keys stored or distributed. Keys are rotated automatically after every 1 million packets or 2 GiB of traffic. The system is designed to minimize passive and active compromise by external actors. If the password is kept secure, so is your data.
 
+## Testing
+
+In addition to the latest binaries and C header files, this repository also contains a simple test client in the `test` sub-directory. Please note, that the configure process will try to download, verify and extract dependencies (e.g. [miniaudio](https://miniaud.io)), which are specified in the `CMakeLists.txt` file. [miniaudio](https://miniaud.io) is used to provide basic audio capture and playback functionality in the test client.
+
+### Configuring and Building
+
+1. Create a build directory:  
+   `mkdir -p build && cd build`
+
+2. Generate build scripts for your preferred build system:
+
+   - For _make_ ...  
+     `cmake ../`
+   - ... or for _ninja_ ...  
+     `cmake -GNinja ../`
+
+3. Build the test client:
+   - Using _make_ ...  
+     `make`
+   - ... or _ninja_ ...  
+     `ninja`
+
+On Windows, calling `cmake` from the build directory will create a _Visual Studio_ solution, which can be built using the following command:
+
+```bat
+msbuild odin_client.sln
+```
+
+### Using the Test Client
+
+The test client accepts several arguments to control its functions, but the following three options are particularly crucial for its intended purpose:
+
+```text
+odin_client -r <room_id> -k <access_key> -s <server_url>
+```
+
+The `-r` argument (or `--room-id`) is used to specify the name of the room to join. If no room name is provided, the client will automatically join a room called **default**.
+
+The `-k` argument (or `--access-key`) is used to specify an access key for generating tokens. If no access key is provided, the test client will auto-generate a key and display it in the console. An access key is a unique authentication key used to generate room tokens for accessing the 4Players ODIN server network. It is important to use the same access key for all clients that wish to join the same ODIN room. For more information about access keys, please refer to our [documentation](https://docs.4players.io/voice/introduction/access-keys/).
+
+The `-s` argument (or `--server-url`) allows you to specify an alternate ODIN server address. This address can be either the URL to an ODIN gateway or an ODIN server. You may need to specify an alternate server if you are hosting your own fleet of ODIN servers. If you do not specify an ODIN server URL, the test client will use the default gateway, which is located at **https://gateway.odin.4players.io**.
+
+**Note:** You can use the `--help` argument to get a full list of options provided by the console client.
+
 ## Resources
 
 - [Documentation](https://docs.4players.io/voice/)
