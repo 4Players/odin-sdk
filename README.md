@@ -25,6 +25,7 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
    - [Proximity Chat](#proximity-chat)
    - [Messages](#messages)
    - [End-to-End Encryption](#end-to-end-encryption-cipher)
+- [Testing](#testing)
 - [Resources](#resources)
 - [Troubleshooting](#troubleshooting)
 
@@ -298,9 +299,9 @@ The APM module uses a variety of smart enhancement algorithms for enhancing audi
 - **Noise Suppression:** \
    When enbabled, the noise suppressor will remove distracting background noise from the input audio signal. You can control the aggressiveness of the suppression. Increasing the level will reduce the noise level at the expense of a higher speech distortion.
 - **High-Pass Filter (HPF):** \
-   When enabled, the transient suppressor will try to detect and attenuate keyboard clicks.
-- **Transient Suppression:** \
    When enabled, the high-pass filter will remove low-frequency content from the input audio signal, thus making it sound cleaner and more focused.
+- **Transient Suppression:** \
+   When enabled, the transient suppressor will try to detect and attenuate keyboard clicks.
 - **Automatic Gain Control (AGC):** \
    When enabled, the gain controller will bring the input audio signal to an appropriate range when it's either too loud or too quiet.
 
