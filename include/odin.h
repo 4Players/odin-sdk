@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.8.0"
+#define ODIN_VERSION "1.8.1"
 
 /**
  * Defines known error codes returned by ODIN functions.
@@ -43,79 +43,79 @@ typedef enum OdinError {
     /**
      * A mandatory argument is null
      */
-    ODIN_ERROR_ARGUMENT_NULL = -101,
+    ODIN_ERROR_ARGUMENT_NULL = -11,
     /**
      * A provided argument is too small
      */
-    ODIN_ERROR_ARGUMENT_TOO_SMALL = -102,
+    ODIN_ERROR_ARGUMENT_TOO_SMALL = -12,
     /**
      * A provided argument is out of the expected bounds
      */
-    ODIN_ERROR_ARGUMENT_OUT_OF_BOUNDS = -103,
+    ODIN_ERROR_ARGUMENT_OUT_OF_BOUNDS = -13,
     /**
      * A provided string argument is not valid UTF-8
      */
-    ODIN_ERROR_ARGUMENT_INVALID_STRING = -104,
+    ODIN_ERROR_ARGUMENT_INVALID_STRING = -14,
     /**
      * A provided handle argument is invalid
      */
-    ODIN_ERROR_ARGUMENT_INVALID_HANDLE = -105,
+    ODIN_ERROR_ARGUMENT_INVALID_HANDLE = -15,
     /**
      * A provided identifier argument is invalid
      */
-    ODIN_ERROR_ARGUMENT_INVALID_ID = -106,
+    ODIN_ERROR_ARGUMENT_INVALID_ID = -16,
     /**
      * The provided version is invalid
      */
-    ODIN_ERROR_INVALID_VERSION = -201,
+    ODIN_ERROR_INVALID_VERSION = -21,
     /**
      * The provided access key is invalid
      */
-    ODIN_ERROR_INVALID_ACCESS_KEY = -202,
+    ODIN_ERROR_INVALID_ACCESS_KEY = -22,
     /**
      * The provided gateway/server address is invalid
      */
-    ODIN_ERROR_INVALID_URI = -203,
+    ODIN_ERROR_INVALID_URI = -23,
     /**
      * The provided token is invalid
      */
-    ODIN_ERROR_INVALID_TOKEN = -204,
+    ODIN_ERROR_INVALID_TOKEN = -24,
     /**
      * The provided effect is not compatible to the expected effect type
      */
-    ODIN_ERROR_INVALID_EFFECT = -205,
+    ODIN_ERROR_INVALID_EFFECT = -25,
     /**
      * The provided MessagePack encoded bytes are invalid
      */
-    ODIN_ERROR_INVALID_MSG_PACK = -206,
+    ODIN_ERROR_INVALID_MSG_PACK = -26,
     /**
      * The provided JSON string invalid
      */
-    ODIN_ERROR_INVALID_JSON = -207,
+    ODIN_ERROR_INVALID_JSON = -27,
     /**
      * The provided token does not grant access to the requested room
      */
-    ODIN_ERROR_TOKEN_ROOM_REJECTED = -301,
+    ODIN_ERROR_TOKEN_ROOM_REJECTED = -31,
     /**
      * The token is missing a customer identifier
      */
-    ODIN_ERROR_TOKEN_MISSING_CUSTOMER = -302,
+    ODIN_ERROR_TOKEN_MISSING_CUSTOMER = -32,
     /**
      * The audio processing module reported an error
      */
-    ODIN_ERROR_AUDIO_PROCESSING_FAILED = -401,
+    ODIN_ERROR_AUDIO_PROCESSING_FAILED = -41,
     /**
      * The setup process of the Opus audio codec reported an error
      */
-    ODIN_ERROR_AUDIO_CODEC_CREATION_FAILED = -402,
+    ODIN_ERROR_AUDIO_CODEC_CREATION_FAILED = -42,
     /**
      * Encoding of an audio packet failed
      */
-    ODIN_ERROR_AUDIO_ENCODING_FAILED = -403,
+    ODIN_ERROR_AUDIO_ENCODING_FAILED = -43,
     /**
      * Decoding of an audio packet failed
      */
-    ODIN_ERROR_AUDIO_DECODING_FAILED = -404,
+    ODIN_ERROR_AUDIO_DECODING_FAILED = -44,
 } OdinError;
 
 /**
