@@ -20,7 +20,6 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
       - [Event Handling](#event-handling)
    - [Audio Encoding and Decoding](#audio-encoding-and-decoding)
    - [Audio Pipelines & Effects](#audio-pipelines-and-effects)
-   - [Media Stream Signaling](#media-stream-signaling)
    - [User Data](#user-data)
    - [Proximity Chat](#proximity-chat)
    - [Messages](#messages)
@@ -74,21 +73,18 @@ int main(int argc, const char *argv[])
 {
    odin_initialize(ODIN_VERSION);
 
-   OdinConnectionPool *pool;
-   OdinConnectionPoolSettings settings = {
+   OdinRoomEvents events = {
       .on_datagram = NULL,
       .on_rpc = NULL,
       .user_data = NULL
    };
-   odin_connection_pool_create(settings, &pool);
 
    OdinRoom *room;
-   odin_room_create(pool, "<SERVER_URL>", "<TOKEN>", &room);
+   odin_room_create(pool, "<SERVER_URL>", "<TOKEN>", &events, NULL, &room);
 
    getchar();
 
    odin_room_free(room);
-   odin_connection_pool_free(pool);
    odin_shutdown();
 
    return 0;
@@ -126,43 +122,43 @@ Tokens are signed employing an Ed25519 key pair derived from your distinctive ac
 
 ### Connection Pooling
 
-ODIN uses connection pooling to manage all network communication and event routing between your application and the ODIN server infrastructure. A connection pool allows you to reuse connections across multiple rooms and ensures thread-safe event dispatching.
+ODIN uses connection pooling under the hood to manage all network communication and event routing between your application and the ODIN server infrastructure. Multiple rooms automatically share the same underlying pool, but you no longer need to manage it manually - everything is handled transparently.
 
-To get started, create a connection pool and then use it to create a room:
+To get started, define your callbacks for incoming data and control messages:
 
 ```cpp
-OdinConnectionPool *pool;
-OdinConnectionPoolSettings settings = {
-    .on_datagram = &on_datagram, // for voice data
-    .on_rpc      = &on_rpc,      // for signaling and events
-    .user_data   = &state        // user-defined context passed to callbacks
+void on_datagram(OdinRoom* room, const OdinDatagramProperties* props, const uint8_t* bytes, uint32_t bytes_length, void* user_data);
+
+void on_rpc(OdinRoom* room, const char* json, void* user_data);
+```
+
+Then set up the room events and create a room:
+
+```cpp
+OdinRoomEvents events = {
+   .on_datagram = &on_datagram, // handles incoming voice data
+   .on_rpc      = &on_rpc,      // handles signaling and server events
+   .user_data   = &state        // user-defined context passed to callbacks
 };
-odin_connection_pool_create(settings, &pool);
+
+OdinRoom* room;
+odin_room_create("<GATEWAY_URL>", "<TOKEN>", &events, nullptr, &room);
 ```
 
-The `on_datagram` and `on_rpc` callbacks handle incoming data and control messages respectively.
+The `authentication` parameter can be provided in two forms: either as a raw JWT string or as a serialized JSON object containing additional fields such as the room ID, channel masks and peer user data. Using the JSON object form can be convenient if you want to include optional metadata or audio channel configuration alongside the token.
 
-Next, create a room using the connection pool:
-
-```cpp
-OdinRoom *room;
-odin_room_create(pool, "<SERVER_URL>", "<TOKEN>", &room);
-```
-
-The `odin_room_create()` function constructs a new ODIN room with default parameters. It requires the connection pool, the URI of an ODIN gateway/server and a JSON Web Token (JWT) for user authentication. On success, it returns a room handle and immediately starts an asynchronous connection process so the local peer can join the room.
-
-**Note:** For advanced configuration options, refer to `odin_room_create_ex()`.
+Once created, the room automatically connects and joins in the background. Any additional rooms you create will reuse the same underlying connection pool without extra configuration, so you can focus entirely on your application logic.
 
 #### Voice Data Handling
 
-Voice data is delivered via the `on_datagram` callback. You should forward these datagrams to the appropriate ODIN decoder:
+Voice data is delivered through the `on_datagram` callback. Each incoming packet includes metadata such as the source peer ID and channel mask, which you can use to route the data to the correct ODIN decoder. A typical implementation looks like this:
 
 ```cpp
-void on_datagram(uint64_t room_ref, uint16_t media_id, const uint8_t *bytes, uint32_t bytes_length, void *user_data) {
-   const auto state = reinterpret_cast<State *>(user_data);
-   assert(odin_room_get_ref(state->room.get()) == room_ref);
-
-   if (auto it = state->decoders.find(media_id); it != state->decoders.end()) {
+void on_datagram(OdinRoom* room, const OdinDatagramProperties* properties, const uint8_t* bytes, uint32_t bytes_length, void* user_data) {
+   const auto state = reinterpret_cast<State*>(user_data);
+   assert(state->room.get() == room);
+    
+   if (auto it = state->decoders.find(properties->peer_id); it != state->decoders.end()) {
       odin_decoder_push(it->second.ptr.get(), bytes, bytes_length);
    }
 }
@@ -170,85 +166,94 @@ void on_datagram(uint64_t room_ref, uint16_t media_id, const uint8_t *bytes, uin
 
 #### Event Handling
 
-Control and event messages are delivered through the `on_rpc` callback. These messages are encoded using the [MessagePack-RPC](https://github.com/msgpack-rpc/msgpack-rpc/blob/master/spec.md) format for compact and efficient transmission. To decode and handle them, you can use libraries like [msgpack-c](https://github.com/msgpack/msgpack-c) for low-level access or [nlohmann::json](https://github.com/nlohmann/json) with [MessagePack](https://msgpack.org) support for a more convenient, high-level JSON-like interface - ideal for prototyping and rapid development.
+Control and event messages are delivered through the `on_rpc` callback. These messages are sent as plain UTF-8 encoded JSON strings. This makes it straightforward to inspect and parse events using your favorite JSON library, such as [nlohmann::json](https://github.com/nlohmann/json), without any additional decoding steps.
 
 ```cpp
+#include <nlohmann/json.hpp>
 using namespace nlohmann;
 
-void on_rpc(uint64_t room_ref, const uint8_t *bytes, uint32_t bytes_length, void *user_data) {
-   const auto state = reinterpret_cast<State *>(user_data);
-   assert(odin_room_get_ref(state->room.get()) == room_ref);
+void on_rpc(OdinRoom* room, const char* json_text, void* user_data) {
+   const auto state = reinterpret_cast<State*>(user_data);
+   assert(state->room.get() == room);
 
    try {
-      json rpc = json::from_msgpack(bytes, bytes + bytes_length);
+      json rpc = json::parse(json_text);
       std::cout << "event: " << rpc.dump() << std::endl;
-   } catch (const std::exception &err) {
+   } catch (const std::exception& err) {
       std::cerr << "error: " << err.what() << std::endl;
    }
 }
 ```
 
+Events follow a simple object format where the event name is the top-level key, for example:
+
+```json
+{ "PeerJoined": { "peer_id": 1234, "user_id": "Player A" } }
+```
+
+This structure makes it easy to pattern-match on event names and handle them accordingly.
+
 ### Audio Encoding and Decoding
 
-ODIN separates audio transmission into two core components: *encoders* for outgoing streams and *decoders* for incoming ones. These components manage real-time audio conversion and transport between devices using a shared audio pipeline interface. They each encapsulate an Opus codec for compression/decompression as well as an ingress or egress resampler for automatic sample rate conversion.
+ODIN separates audio transmission into two core components: **encoders** for outgoing streams and **decoders** for incoming ones. These components handle real-time audio conversion and transport using a shared audio pipeline interface. Internally, each encoder/decoder wraps an Opus codec for compression/decompression as well as an ingress or egress resampler for automatic sample rate conversion. This design provides high performance, low latency and flexible hooks for integrating features like Voice Activity Detection (VAD), audio enhancements (APM) or custom effects.
 
-Audio encoders and decoders are built to integrate tightly with the rest of the ODIN runtime and offer high performance and low latency. They provide flexible hooks for custom processing and allow seamless integration of advanced features like voice activity detection (VAD) and audio enhancements (APM).
+Unlike earlier versions, there are no separate media objects anymore. Instead, applications are expected to create encoders and decoders as needed - for example, one encoder for the local peer and one decoder per remote peer. It’s also possible to transmit voice on multiple audio channels within the same room simultaneously. In theses cases, the `on_datagram` callback provides the corresponding channel mask so you can decide how to route or process incoming audio.
 
 #### Encoders (Outgoing Audio)
 
-An encoder prepares raw PCM audio captured from local sources (typically a microphone) and transforms it into compressed ODIN datagrams. This data is then ready for network transmission.
+An encoder transforms raw PCM audio captured from a local source (e.g., microphone) into compressed ODIN datagrams for transmission.
 
 ```cpp
-OdinEncoder *encoder;
-odin_encoder_create(sample_rate, stereo, &encoder);
+OdinEncoder* encoder;
+odin_encoder_create(peer_id, sample_rate, stereo, &encoder);
 
-const OdinPipeline *pipeline = odin_encoder_get_pipeline(encoder);
+const OdinPipeline* pipeline = odin_encoder_get_pipeline(encoder);
 ```
 
-Push captured audio into the encoder:
+Push captured audio samples into the encoder. Samples must be interleaved 32-bit floats in the range `[-1.0, 1.0]`:
 
 ```cpp
-odin_encoder_push(encoder, samples, sample_count); // samples must be float, interleaved, in [-1.0, 1.0]
+odin_encoder_push(encoder, samples, sample_count);
 ```
 
-Poll for encoded datagrams to send:
+Poll for encoded datagrams and send them to the room:
 
 ```cpp
 for (;;) {
    uint8_t datagram[2048];
    uint32_t datagram_length = sizeof(datagram);
-   switch (odin_encoder_pop(encoder, &media_ids, media_ids_length, datagram, &datagram_length)) {
+   switch (odin_encoder_pop(encoder, datagram, &datagram_length)) {
       case ODIN_ERROR_SUCCESS:
-         odin_room_send_datagram(room, datagram, datagram_length);
+         CHECK(odin_room_send_datagram(room, datagram, datagram_length));
          break;
       case ODIN_ERROR_NO_DATA:
-         return;
+         return; // no more packets ready
       default:
-         std::cerr << "something went wrong" << std::endl;
-   };
+         std::cerr << "failed to encode audio datagram" << std::endl;
+   }
 }
 ```
 
-**Note:** You can assign the same encoder output to multiple rooms by specifying up to four media stream IDs.
+**Note:** You can optionally assign 3D positions per channel mask on the encoder to enable positional audio.
 
 #### Decoders (Incoming Audio)
 
-A decoder receives and processes datagrams from remote peers. Each incoming media stream typically maps to one decoder instance:
+A decoder processes datagrams received from remote peers. Typically, you’ll create one decoder per peer, which you update in your `on_datagram` callback.
 
 ```cpp
-OdinDecoder *decoder;
-odin_decoder_create(media_id, sample_rate, stereo, &decoder);
+OdinDecoder* decoder;
+odin_decoder_create(sample_rate, stereo, &decoder);
 
-const OdinPipeline *pipeline = odin_decoder_get_pipeline(decoder);
+const OdinPipeline* pipeline = odin_decoder_get_pipeline(decoder);
 ```
 
-Feed received datagrams into the decoder:
+Push received datagrams into the decoder:
 
 ```cpp
 odin_decoder_push(decoder, bytes, length);
 ```
 
-Fetch decoded audio samples for playback:
+Retrieve decoded audio for playback:
 
 ```cpp
 float samples[FRAME_SIZE];
@@ -256,7 +261,7 @@ bool is_silent;
 odin_decoder_pop(decoder, samples, FRAME_SIZE, &is_silent);
 ```
 
-**Note:** Decoders should be created and destroyed dynamically in response to peer update events such as `MediaStarted` or `MediaStopped`.
+**Note:** The `on_datagram` callback provides the channel mask used for each packet, allowing you to handle multi-channel or spatialized setups efficiently.
 
 ### Audio Pipelines and Effects
 
@@ -340,135 +345,101 @@ odin_pipeline_insert_custom_effect(pipeline, index, my_effect_callback, user_dat
 
 You can remove or reorder effects dynamically as needed. All modifications are thread-safe and take effect immediately.
 
-### Media Stream Signaling
-
-Media stream signaling in ODIN enables applications to explicitly coordinate when to start and stop voice data transmission and reception. This ensures that clients can allocate resources like decoders or mute specific streams efficiently based on actual communication intent.
-
-#### Starting a Media (Sender Side)
-
-The `StartMedia` command is invoked by a sender to signal their intent to start transmitting audio on a given `media_id`. This allows remote clients to create and prepare ODIN decoders and audio pipelines accordingly.
-
-```cpp
-using namespace nlohmann;
-
-json payload = {{"media_id", media_id}, {"properties", {{"kind", "audio"}}}};
-json command = {0, 0, "StartMedia", payload};
-
-auto rpc = json::to_msgpack(command);
-
-odin_room_send_rpc(room, rpc.data(), rpc.size());
-```
-
-#### Stopping a Media (Sender Side)
-
-Use `StopMedia` when a sender is no longer transmitting on a `media_id`. This prompts remote clients to clean up and free decoders associated with that stream.
-
-```cpp
-using namespace nlohmann;
-
-json payload = {{"media_id", media_id}};
-json command = {0, 0, "StopMedia", payload};
-
-auto rpc = json::to_msgpack(command);
-
-odin_room_send_rpc(room, rpc.data(), rpc.size());
-```
-
-#### Pausing a Media (Receiver Side)
-
-The `PauseMedia` command is used by a client to request that the server temporarily stops delivering voice data from a specific `media_id`. It works like a server-side mute for a given stream from another user, and is entirely local to the requesting client.
-
-```cpp
-using namespace nlohmann;
-
-json payload = {{"media_id", media_id}};
-json command = {0, 0, "PauseMedia", payload};
-
-auto rpc = json::to_msgpack(command);
-
-odin_room_send_rpc(room, rpc.data(), rpc.size());
-```
-
-#### Resuming a Media (Receiver Side)
-
-The `ResumeMedia` command reverses the effect of `PauseMedia`, telling the server to resume sending voice data for the specified `media_id`.
-
-```cpp
-using namespace nlohmann;
-
-json payload = {{"media_id", media_id}};
-json command = {0, 0, "ResumeMedia", payload};
-
-auto rpc = json::to_msgpack(command);
-
-odin_room_send_rpc(room, rpc.data(), rpc.size());
-```
-
 ### User Data
 
-Each peer in an ODIN room is associated with a custom, user-defined user data payload, represented as a binary byte array (`uint8_t *`). This data is automatically synchronized across all connected peers and serves as a flexible mechanism to store and share metadata per peer—such as usernames, avatars, roles, team assignments, mute flags or gameplay state.
+Each peer in an ODIN room can carry a custom, user-defined user data payload, represented as a JSON object. This data is automatically synchronized across all connected peers and provides a flexible way to share peer-specific metadata such as usernames, avatars, roles, team assignments, mute flags or gameplay state.
 
-You can set an initial value when joining a room using `odin_room_create_ex()` or dynamically update it later using the `UpdatePeer` command.
+You can set the initial user data in the authentication JSON when creating or joining a room:
 
 ```cpp
-using namespace nlohmann;
+nlohmann::json authentication = {
+   {"token", "<JWT>"},
+   {"user_data", {
+      {"name", "Player A"},
+      {"team", "red"}
+   }}
+};
 
-json payload = {{"user_data", user_data_bin}};
-json command = {0, 0, "UpdatePeer", payload};
-
-auto rpc = json::to_msgpack(command);
-
-odin_room_send_rpc(room, rpc.data(), rpc.size());
+odin_room_create("<GATEWAY_HOST>", authentication.dump().data(), &events, nullptr, &room);
 ```
+
+Once connected, you can update the local peer’s user data dynamically at any time by sending a client command through RPC:
+
+```cpp
+nlohmann::json command = {
+   {"ChangeSelf", {
+      {"user_data", {
+         {"name", "Player A"},
+         {"team", "red"},
+         {"status", "ready"}
+      }}
+   }}
+};
+
+odin_room_send_rpc(room, command.dump().data());
+```
+
+All peers in the room will receive the updated user data automatically via the `PeerChanged` event. This makes it simple to keep in-game state or UI elements synchronized without additional signaling layers.
 
 ### Proximity Chat
 
-ODIN includes built-in support for proximity-based voice communication, allowing peers in the same room to only "hear" each other if they are within a defined virtual range. This feature enables scalable spatial audio systems for games, simulations, and virtual environments - without requiring you to manually filter streams or manage decoder state.
+ODIN provides built-in support for proximity-based voice communication through a combination of channel masks and per-channel positions. Each room supports **up to sixty-four audio channels**, represented by a 64-bit channel mask. Peers can transmit on one or more channels at the same time and each receiver decides exactly which peers and channels to hear by adjusting its masks. Every channel can also carry its own 3D position, which the server uses to perform automatic distance culling within a unit sphere radius of `1.0`. By scaling your world coordinates into this unit sphere before sending, you can implement scalable, spatially-aware voice systems without manually filtering streams on the client.
 
-Each peer can publish a 3D position vector using the `SetPeerPosition` command. The ODIN server uses these positions to automatically cull audio streams between peers based on proximity. If two peers are beyond a defined distance threshold, the server will stop delivering audio packets between them. This behavior reduces bandwidth and CPU usage for large rooms and supports dynamic, spatially-aware voice chat without manual filtering on the client side.
+#### Channel Masks
 
-To define your position when joining a room, pass a 3-element `float` array to `odin_room_create_ex()`:
+ODIN provides a powerful channel mask system to determine which peers and channels you receive audio from. Each peer maintains a global/server mask, identified by `PeerId::SERVER` (which corresponds to `0` in the public API) and a set of per-peer masks. When deciding whether to forward audio from a given peer and channel, the server takes the bitwise AND of the global mask and the specific peer’s mask. By default, both are set to `FULL`, meaning you will receive all audio from all peers.
 
-```cpp
-float position[3] = {0.0, 0.0, 0.0};
-
-OdinRoom *room;
-odin_room_create_ex(pool, "<SERVER_URL>", "<TOKEN>", NULL, user_data, user_data_length, position, NULL, &room);
-```
-
-This will ensure the server correctly filters incoming voice data as soon as the connection is established. To change your position while connected, send a `SetPeerPosition` command. This can be triggered periodically or when your character moves in the game world:
+Clearing the global mask switches the behavior into a more restrictive whitelist mode: since `0 & mask = 0`, no audio is received unless you explicitly add per-peer masks with non-zero bits. This gives you precise control over who is audible at any given time without starting or stopping individual media streams.
+You can specify initial masks in the authentication JSON when joining a room. The following example clears the global mask and enables channels *1*, *3* and *5* for peer `1234`:
 
 ```cpp
-using namespace nlohmann;
+nlohmann::json authentication = {
+    {"token", "<JWT>"},
+    {"channel_masks", {
+        {0,    0x00}, // global/server mask
+        {1234, 0x15}  // 0b00010101 → channels 1, 3, 5
+    }}
+};
 
-json payload = {{"position", position_arr}};
-json command = {0, 0, "SetPeerPosition", payload};
-
-auto rpc = json::to_msgpack(command);
-
-odin_room_send_rpc(room, rpc.data(), rpc.size());
+odin_room_create("<GATEWAY_HOST>", authentication.dump().data(), &events, nullptr, &room);
 ```
 
-**Note:** The default cutoff range is a unit sphere radius of `1.0` and position values should be scaled accordingly. If your game world uses different units (e.g. meters or grid cells), you must scale the coordinates manually before sending.
+Masks can also be updated dynamically at runtime by sending a JSON command. The `SetChannelMasks` command lets you modify the global and per-peer masks at any time. The `reset` field controls whether the new masks replace or extend the existing configuration. When `reset` is set to `true`, the server clears all previously stored masks for that peer before applying the new set. When `reset` is `false` (or omitted), the new entries are additive, which means that they are merged into the existing configuration, allowing you to incrementally enable or adjust individual peers and channels without affecting others.
+
+```cpp
+nlohmann::json command = {
+   {"SetChannelMasks", {
+      {"masks", {
+         {0,    0x00},
+         {1234, 0x06}  // 0b00000110 → channels 2, 3
+      }},
+      {"reset", true}  // replace all existing masks
+   }}
+};
+
+odin_room_send_rpc(room, command.dump().data());
+```
+
+This makes it easy to switch between fully redefining the audio routing configuration and making small, targeted changes on the fly.
 
 ### Messages
 
-ODIN supports sending arbitrary application-level messages between peers in a room. These messages are delivered reliably and in-order via the signaling channel and are ideal for non-audio communication such as gameplay state updates, chat messages, ready checks or custom control flags. Messages are represented as a binary payload (`uint8_t *`) and are **entirely application-defined**. You can use any format you like — raw bytes, JSON, MessagePack, Protocol Buffers, etc.
+ODIN allows you to send arbitrary, application-defined messages between peers in the same room. Messages are delivered **reliably** and **in order** over the signaling channel, making them ideal for gameplay events, chat messages, state synchronization or any other non-audio communication. The payload format is entirely up to you - it can be raw bytes, JSON, Protocol Buffers or anything else you choose.
 
-You can choose to target specific peers by providing a list of `uint64_t` peer IDs or broadcast to all peers by omitting `target_peer_ids`. Messages sent via `SendMessage` are received through the `on_rpc` callback.
+To send a message, construct a JSON command and pass it to `odin_room_send_rpc()`. If you provide a list of `peer_ids`, the message is sent to those peers only. If you omit the list, the message is broadcast to all connected peers.
 
 ```cpp
-using namespace nlohmann;
+nlohmann::json command = {
+   {"SendMessage", {
+      {"message", nlohmann::json::binary_t(message_data.begin(), message_data.end())},
+      {"peer_ids", target_peer_ids} // optional
+   }}
+};
 
-json payload = {{"message", message_bin}, {"target_peer_ids", target_peer_ids}};
-json command = {0, 0, "SendMessage", payload};
-
-auto rpc = json::to_msgpack(command);
-
-odin_room_send_rpc(room, rpc.data(), rpc.size());
+odin_room_send_rpc(room, command.dump().data());
 ```
 
-**Note:** Messages are delivered to all specified targets regardless of proximity. Even if a peer has moved out of range using `SetPeerPosition`, messages are still received.
+Messages are received through the `on_rpc` callback, where they arrive as standard JSON objects containing the binary payload. Unlike voice data, messages are **not affected by proximity or channel masks**. Instead, they are always delivered to the intended recipients, regardless of their position or audio configuration.
 
 ### End-to-End Encryption (Cipher)
 
@@ -479,7 +450,7 @@ OdinCipher *cipher = odin_crypto_create(ODIN_CRYPTO_VERSION);
 odin_crypto_set_password(cipher, (const uint8_t *)"secret", strlen("secret"));
 
 OdinRoom *room;
-odin_room_create_ex(pool, "<SERVER_URL>", "<TOKEN>", NULL, user_data, user_data_length, position, cipher, &room);
+odin_room_create("<GATEWAY_HOST>", "<JWT>", &events, cipher, &room);
 ```
 
 The encryption system uses a master key derived from the password, then derives peer-specific session keys with random salts. These salts are exchanged in-room so that all participants can reconstruct each other's peer keys. The master key never leaves the client and there are no long-term keys stored or distributed. Keys are rotated automatically after every 1 million packets or 2 GiB of traffic. The system is designed to minimize passive and active compromise by external actors. If the password is kept secure, so is your data.
