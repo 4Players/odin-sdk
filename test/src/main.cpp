@@ -1,3 +1,4 @@
+
 /*
  * 4Players ODIN Voice Client Example
  *
@@ -5,6 +6,8 @@
  */
 
 #include <algorithm>
+#include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -26,7 +29,6 @@
 #define ODIN_DEFAULT_GW_ADDR "gateway.odin.4players.io"
 #define ODIN_DEFAULT_ROOM_ID "default"
 #define ODIN_DEFAULT_USER_ID "My User ID"
-#define ODIN_DEFAULT_USER_DATA "{\"name\":\"Console Client\"}"
 
 template <class T> using OpaquePtr = std::unique_ptr<T, void (*)(T *)>;
 
@@ -90,23 +92,18 @@ void init_arguments(int argc, char *argv[]) {
       ("h,help", "display available options")
       // --version
       ("v,version", "show version number and exit")
-      // --server-url <string>
-      ("s,server-url", "server url",
+      // --gateway-address <string>
+      ("s,gateway", "gateway url",
        cxxopts::value<std::string>()->default_value(ODIN_DEFAULT_GW_ADDR))
       // --room-id <string>
       ("r,room-id", "room to join",
        cxxopts::value<std::string>()->default_value(ODIN_DEFAULT_ROOM_ID))
       // --password <string>
       ("p,password", "master password to enable end-to-end-encryption",
-       cxxopts::value<std::string>())
-      // --peer-user-data <string>
-      ("d,peer-user-data", "peer user data to set when joining the room",
-       cxxopts::value<std::string>()->default_value(ODIN_DEFAULT_USER_DATA));
+       cxxopts::value<std::string>());
   options.add_options("Authorization")
-      // --bypass-gateway
-      ("b,bypass-gateway", "bypass gateway and connect to sfu directly")
       // --room-token <string>
-      ("t,room-token", "room token to use for authorization",
+      ("t,room-token", "string to use for authorization",
        cxxopts::value<std::string>())
       // --access-key <string>
       ("k,access-key", "access key to use for local token generation",
@@ -198,7 +195,6 @@ template <typename T> T get_argument(std::string name) {
 
 struct CustomEffectContext {
   uint64_t peer_id;
-  uint16_t media_id;
   bool is_silent;
 };
 
@@ -209,8 +205,8 @@ static void custom_effect_talk_status(float *samples, uint32_t samples_count,
                                       bool *is_silent, const void *user_data) {
   auto ctx = static_cast<CustomEffectContext *>(const_cast<void *>(user_data));
   if (ctx->is_silent != *is_silent) {
-    LOG_INFO("peer {} {} talking on media {}", ctx->peer_id,
-             ctx->is_silent ? "started" : "stopped", ctx->media_id);
+    LOG_INFO("peer {} {} talking", ctx->peer_id,
+             ctx->is_silent ? "started" : "stopped");
   }
   ctx->is_silent = *is_silent;
 }
@@ -237,28 +233,22 @@ struct State {
   ma_device playback_device;
   ma_device capture_device;
 
-  std::unordered_map<uint16_t, Encoder> encoders;
-  std::unordered_map<uint16_t, Decoder> decoders;
-  std::unordered_map<uint64_t, std::unordered_set<uint16_t>> peer_medias;
+  std::optional<Encoder> encoder;
+  std::unordered_map<api::PeerId, Decoder> decoders;
 
   State();
 
-  void handle_room_status_changes(const api::server::RoomStatusChanged event);
-  void handle_room_updates(const api::server::RoomUpdated event);
-  void handle_peer_updates(const api::server::PeerUpdated event);
-
-  void on_room_joined(const api::Room room, const uint64_t own_peer_id,
-                      const std::vector<uint16_t> own_media_ids);
+  void on_room_status_changed(const std::string &status);
+  void on_room_joined(const std::string &room_id, const std::string &customer,
+                      api::PeerId own_peer_id);
   void on_room_left(const std::string &reason);
-  void on_peer_joined(const api::Peer peer);
-  void on_peer_left(const uint64_t peer_id);
-  void on_media_started(const api::Media media, const uint64_t peer_id);
-  void on_media_stopped(const uint16_t media_id, const uint64_t peer_id);
+  void on_peer_joined(const api::PeerId peer_id, const std::string &user_id);
+  void on_peer_left(const api::PeerId peer_id);
 
-  void configure_encoder(const uint64_t peer_id, const uint16_t media_id);
-  void configure_decoder(const uint64_t peer_id, const uint16_t media_id);
+  void configure_encoder(const api::PeerId peer_id);
+  void configure_decoder(const api::PeerId peer_id);
 
-  void send_rpc(api::client::Command);
+  void send_rpc(const api::client::Command);
 
   void start_audio_devices(int playback_device_idx,
                            int playback_device_sample_rate_hz,
@@ -280,13 +270,13 @@ void handle_audio_data(ma_device *device, void *output, const void *input,
   if (device->type == ma_device_type_capture) {
     auto input_count = frame_count * device->capture.channels;
 
-    for (const auto &[media_id, encoder] : state->encoders) {
-      odin_encoder_push(encoder.ptr.get(),
+    if (state->encoder.has_value()) {
+      odin_encoder_push(state->encoder->ptr.get(),
                         reinterpret_cast<const float *>(input), input_count);
       for (;;) {
         uint8_t datagram[2048];
         uint32_t datagram_length = sizeof(datagram);
-        switch (odin_encoder_pop(encoder.ptr.get(), &media_id, 1, datagram,
+        switch (odin_encoder_pop(state->encoder->ptr.get(), datagram,
                                  &datagram_length)) {
         case ODIN_ERROR_SUCCESS:
           CHECK(odin_room_send_datagram(state->room.get(), datagram,
@@ -312,12 +302,11 @@ void handle_audio_data(ma_device *device, void *output, const void *input,
                      std::plus<>());
     }
 
-    if (global::apm_effect_config.echo_canceller) {
-      for (const auto &[media_id, encoder] : state->encoders) {
-        odin_pipeline_update_apm_playback(
-            odin_encoder_get_pipeline(encoder.ptr.get()), encoder.apm_effect_id,
-            output_begin, output_count, 10);
-      }
+    if (state->encoder.has_value() &&
+        global::apm_effect_config.echo_canceller) {
+      odin_pipeline_update_apm_playback(
+          odin_encoder_get_pipeline(state->encoder->ptr.get()),
+          state->encoder->apm_effect_id, output_begin, output_count, 10);
     }
   }
 }
@@ -345,165 +334,75 @@ State::State() : room(nullptr, &odin_room_free), cipher(nullptr) {
 }
 
 /**
- * Handles room connection state changes and clears all encoder/decoder and
- * peer-media state on room leave.
+ * Handles room connection state changes and clears all encoders/decoders on
+ * room leave.
  */
-void State::handle_room_status_changes(
-    const api::server::RoomStatusChanged event) {
-  if (event.status == "Joined")
+void State::on_room_status_changed(const std::string &status) {
+  if (status == "joined")
     return;
 
-  this->encoders.clear();
+  this->encoder.reset();
   this->decoders.clear();
-  this->peer_medias.clear();
 }
 
 /**
- * Dispatches and handles a batch of room-related server events.
+ * Handles successful join to a room and configures an encoder for outgoing
+ * audio.
  */
-void State::handle_room_updates(const api::server::RoomUpdated event) {
-  for (const auto &update : event.updates) {
-    std::visit(api::visitor{
-                   [&](const api::server::RoomUpdateJoined &u) {
-                     this->on_room_joined(u.room, u.own_peer_id, u.media_ids);
-                   },
-                   [&](const api::server::RoomUpdateLeft &u) {
-                     this->on_room_left(u.reason);
-                   },
-                   [&](const api::server::RoomUpdatePeerJoined &u) {
-                     this->on_peer_joined(u.peer);
-                   },
-                   [&](const api::server::RoomUpdatePeerLeft &u) {
-                     this->on_peer_left(u.peer_id);
-                   },
-                   [&](const api::server::RoomUpdateUserDataChanged &u) {
-                     // unused
-                   },
-               },
+void State::on_room_joined(const std::string &room_id,
+                           const std::string &customer,
+                           api::PeerId own_peer_id) {
+  LOG_INFO("room '{}' owned by '{}' joined successfully as peer {}", room_id,
+           customer, own_peer_id);
 
-               update);
-  }
+  this->configure_encoder(own_peer_id);
 }
 
 /**
- * Dispatches and handles individual peer-related server events.
+ * Closes the application when a room connection was closed by the server.
  */
-void State::handle_peer_updates(const api::server::PeerUpdated event) {
-  std::visit(api::visitor{
-                 [&](const api::server::PeerUpdateMediaStarted &u) {
-                   this->on_media_started(u.media, u.peer_id);
-                 },
-                 [&](const api::server::PeerUpdateMediaStopped &u) {
-                   this->on_media_stopped(u.media_id, u.peer_id);
-                 },
-                 [&](const api::server::PeerUpdateUserDataChanged &u) {
-                   // unused
-                 },
-                 [&](const api::server::PeerUpdateTagsChanged &u) {
-                   // unused
-                 },
-             },
-             event);
-}
-
-/**
- * Handles successful join to a room, processes existing peers, notifies the
- * server to start the local media stream and configures an encoder for
- * outgoing audio.
- */
-void State::on_room_joined(const api::Room room, const uint64_t own_peer_id,
-                           const std::vector<uint16_t> own_media_ids) {
-  uint32_t room_name_length = 256;
-  std::string room_name(room_name_length, '\0');
-  CHECK(odin_room_get_name(this->room.get(), &room_name[0], &room_name_length));
-  room_name.resize(room_name_length);
-
-  for (const auto &peer : room.peers) {
-    this->on_peer_joined(peer);
-  }
-  LOG_INFO("room '{}' owned by '{}' joined successfully as peer {}", room_name,
-           room.customer, own_peer_id);
-
-  auto media_id = own_media_ids.front();
-  this->send_rpc(api::client::StartMedia{media_id, {{"kind", "audio"}}});
-
-  this->configure_encoder(own_peer_id, media_id);
-}
-
 void State::on_room_left(const std::string &reason) {
   LOG_INFO("room left; {}", reason);
   exit(EXIT_SUCCESS);
 }
 
 /**
- * Handles a new peer joining the room. This also initializes decoders for
- * any active media streams they already have and checks for crypto password
- * mismatches.
+ * Handles a new peer joining the room. This also initializes decoders and
+ * checks for crypto password mismatches.
  */
-void State::on_peer_joined(const api::Peer peer) {
-  LOG_INFO("peer {} joined with user id '{}'", peer.id, peer.user_id);
-
-  for (const auto &media : peer.medias) {
-    this->on_media_started(media, peer.id);
-  }
+void State::on_peer_joined(const api::PeerId peer_id,
+                           const std::string &user_id) {
+  LOG_INFO("peer {} joined with user id '{}'", peer_id, user_id);
 
   if (ODIN_CRYPTO_PEER_STATUS_PASSWORD_MISSMATCH ==
-      odin_crypto_get_peer_status(this->cipher, peer.id)) {
+      odin_crypto_get_peer_status(this->cipher, peer_id)) {
     LOG_WARNING(
         "unable to communicate with peer {}; master passwords doe not match",
-        peer.id);
+        peer_id);
   }
+
+  this->configure_decoder(peer_id);
 }
 
 /**
- * Handles a peer leaving the room. This also stops all media streams associated
- * with the peer and removes their decoders.
+ * Handles a peer leaving the room. This also stops all media streams
+ * associated with the peer and removes their decoders.
  */
-void State::on_peer_left(const uint64_t peer_id) {
+void State::on_peer_left(const api::PeerId peer_id) {
   LOG_INFO("peer {} left", peer_id);
 
-  const auto peer = this->peer_medias.find(peer_id);
-  if (peer == this->peer_medias.end())
-    return;
-  const auto &media_ids = peer->second;
-  while (media_ids.begin() != media_ids.end()) {
-    this->on_media_stopped(*media_ids.begin(), peer_id);
-  }
-
-  this->peer_medias.erase(peer);
+  this->decoders.erase(peer_id);
 }
 
 /**
- * Handles the start of a media stream from a remote peer.
+ * Creates and configures an audio encoder for a specific peer. It retrieves
+ * the encoder's processing pipeline and inserts built-in effects for speech
+ * detection (VAD) and advanced audio processing (APM) as well as a custom
+ * effect to track talk status for the local peer.
  */
-void State::on_media_started(const api::Media media, const uint64_t peer_id) {
-  LOG_INFO("media {} started by peer {}", media.id, peer_id);
-
-  this->configure_decoder(peer_id, media.id);
-
-  auto [peer, _] = this->peer_medias.insert({peer_id, {}});
-  peer->second.insert(media.id);
-}
-
-/**
- * Handles the stop of a media stream previously started by a remote peer.
- */
-void State::on_media_stopped(const uint16_t media_id, const uint64_t peer_id) {
-  LOG_INFO("media {} stopped by peer {}", media_id, peer_id);
-
-  this->decoders.erase(media_id);
-  this->peer_medias.find(peer_id)->second.erase(media_id);
-}
-
-/**
- * Creates and configures an audio encoder for a specific peer and media stream.
- * It retrieves the encoder's processing pipeline and inserts built-in effects
- * for speech detection (VAD) and advanced audio processing (APM) as well as a
- * custom effect to track talk status for the local peer.
- */
-void State::configure_encoder(const uint64_t peer_id, const uint16_t media_id) {
+void State::configure_encoder(const api::PeerId peer_id) {
   OdinEncoder *encoder;
-  CHECK(odin_encoder_create(this->capture_device.sampleRate,
+  CHECK(odin_encoder_create(peer_id, this->capture_device.sampleRate,
                             this->capture_device.capture.channels == 2,
                             &encoder));
   const OdinPipeline *pipeline = odin_encoder_get_pipeline(encoder);
@@ -530,34 +429,33 @@ void State::configure_encoder(const uint64_t peer_id, const uint16_t media_id) {
     vad_effect_id = 0;
   }
 
-  auto [e, inserted] = this->encoders.insert(
-      {media_id, Encoder{OpaquePtr<OdinEncoder>(encoder, &odin_encoder_free),
-                         vad_effect_id,
-                         apm_effect_id,
-                         {peer_id, media_id, true}}});
-  assert(inserted);
+  this->encoder.emplace(
+      Encoder{OpaquePtr<OdinEncoder>(encoder, &odin_encoder_free),
+              vad_effect_id,
+              apm_effect_id,
+              {peer_id, true}});
 
   odin_pipeline_insert_custom_effect(
       pipeline, odin_pipeline_get_effect_count(pipeline),
-      custom_effect_talk_status, static_cast<const void *>(&e->second.ctx),
+      custom_effect_talk_status, static_cast<const void *>(&this->encoder->ctx),
       nullptr);
 }
 
 /**
- * Creates and configures an audio decoder for a specific peer and media stream.
- * It retrieves the decoder's processing pipeline and inserts a custom effect to
- * track talk status for the peer.
+ * Creates and configures an audio decoder for a specific peer. It retrieves
+ * the decoder's processing pipeline and inserts a custom effect to track talk
+ * status for the peer.
  */
-void State::configure_decoder(const uint64_t peer_id, const uint16_t media_id) {
+void State::configure_decoder(const api::PeerId peer_id) {
   OdinDecoder *decoder;
-  CHECK(odin_decoder_create(media_id, this->playback_device.sampleRate,
+  CHECK(odin_decoder_create(this->playback_device.sampleRate,
                             this->playback_device.playback.channels == 2,
                             &decoder));
   const OdinPipeline *pipeline = odin_decoder_get_pipeline(decoder);
 
   auto [d, inserted] = this->decoders.insert(
-      {media_id, Decoder{OpaquePtr<OdinDecoder>(decoder, &odin_decoder_free),
-                         {peer_id, media_id, true}}});
+      {peer_id, Decoder{OpaquePtr<OdinDecoder>(decoder, &odin_decoder_free),
+                        {peer_id, true}}});
   assert(inserted);
 
   odin_pipeline_insert_custom_effect(pipeline, 0, custom_effect_talk_status,
@@ -575,8 +473,7 @@ void State::send_rpc(api::client::Command cmd) {
   LOG_DEBUG("sending rpc: {}", rpc.dump());
 
   try {
-    auto bytes = nlohmann::json::to_msgpack(rpc);
-    CHECK(odin_room_send_rpc(this->room.get(), bytes.data(), bytes.size()));
+    CHECK(odin_room_send_rpc(this->room.get(), rpc.dump().data()));
   } catch (const std::exception &e) {
     LOG_WARNING("failed to encode outgoing rpc; {}", e.what());
   }
@@ -717,18 +614,17 @@ OpaquePtr<OdinTokenGenerator> get_token_generator(std::string &access_key) {
  * produce a JWT for authentication in the ODIN network.
  */
 std::string generate_token(OpaquePtr<OdinTokenGenerator> &token_generator,
-                           const std::string &audience,
                            const std::string &room_id,
                            const std::string &user_id) {
-  nlohmann::json claims;
   auto nbf = time(nullptr);
   auto exp = nbf + 300; /* 5 minutes */
 
-  claims["rid"] = room_id;
-  claims["uid"] = user_id;
-  claims["aud"] = audience;
-  claims["nbf"] = nbf;
-  claims["exp"] = exp;
+  nlohmann::json claims = {
+      {"rid", room_id},
+      {"uid", user_id},
+      {"nbf", nbf},
+      {"exp", exp},
+  };
 
   std::string token(1024, '\0');
   uint32_t token_length = token.size();
@@ -739,51 +635,63 @@ std::string generate_token(OpaquePtr<OdinTokenGenerator> &token_generator,
   return token;
 }
 
-void on_datagram(uint64_t room_ref, uint16_t media_id, const uint8_t *bytes,
-                 uint32_t bytes_length, void *user_data) {
+void on_datagram(OdinRoom *room, const OdinDatagramProperties *properties,
+                 const uint8_t *bytes, uint32_t bytes_length, void *user_data) {
   const auto state = reinterpret_cast<State *>(user_data);
-  assert(odin_room_get_ref(state->room.get()) == room_ref);
-  if (auto it = state->decoders.find(media_id); it != state->decoders.end()) {
+  assert(state->room.get() == room);
+  if (auto it = state->decoders.find(properties->peer_id);
+      it != state->decoders.end()) {
     CHECK(odin_decoder_push(it->second.ptr.get(), bytes, bytes_length));
   }
 }
 
 /**
- * Callback invoked when an RPC message is received from the room. This function
- * is registered with the ODIN connection pool to handle incoming RPC datagrams.
- * It verifies the room reference, deserializes the MessagePack payload into
- * JSON, converts it to a server event variant and dispatches it to the
- * appropriate handler.
+ * Callback invoked when an RPC message is received from the room. This
+ * function is registered with the ODIN connection pool to handle incoming RPC
+ * datagrams. It verifies the room reference, deserializes the MessagePack
+ * payload into JSON, converts it to a server event variant and dispatches it
+ * to the appropriate handler.
  */
-void on_rpc(uint64_t room_ref, const uint8_t *bytes, uint32_t bytes_length,
-            void *user_data) {
+void on_rpc(OdinRoom *room, const char *text, void *user_data) {
   const auto state = reinterpret_cast<State *>(user_data);
-  assert(odin_room_get_ref(state->room.get()) == room_ref);
+  assert(state->room.get() == room);
   try {
-    nlohmann::json rpc =
-        nlohmann::json::from_msgpack(bytes, bytes + bytes_length);
+    nlohmann::json rpc = nlohmann::json::parse(text);
     LOG_DEBUG("received rpc: {}", rpc.dump());
 
     auto event = rpc.get<api::server::Event>();
     std::visit(api::visitor{
-                   [state](const api::server::RoomUpdated &u) {
-                     state->handle_room_updates(u);
+                   [state](const api::server::Joined &u) {
+                     state->on_room_joined(u.room_id, u.customer,
+                                           u.own_peer_id);
                    },
-                   [state](const api::server::PeerUpdated &u) {
-                     state->handle_peer_updates(u);
+                   [state](const api::server::Left &u) {
+                     state->on_room_left(u.reason);
                    },
-                   [state](const api::server::RoomStatusChanged &u) {
-                     state->handle_room_status_changes(u);
+                   [state](const api::server::PeerJoined &u) {
+                     state->on_peer_joined(u.peer_id, u.user_id);
+                   },
+                   [state](const api::server::PeerLeft &u) {
+                     state->on_peer_left(u.peer_id);
+                   },
+                   [state](const api::server::PeerChanged &u) {
+                     // unused
+                   },
+                   [state](const api::server::NewReconnectToken &u) {
+                     // unused
                    },
                    [state](const api::server::MessageReceived &u) {
                      // unused
                    },
-                   [state](const api::server::CommandFinished &u) {
-                     if (u.error.has_value())
-                       LOG_ERROR("rpc failed; {}", u.error.value());
+                   [state](const api::server::RoomStatusChanged &u) { // TODO
+                     state->on_room_status_changed(u.status);
+                   },
+                   [state](const api::server::Error &u) { // TODO
+                     LOG_ERROR("server error: {}", u.message);
                    },
                },
                event);
+
   } catch (const std::exception &e) {
     LOG_WARNING("failed to decode incoming rpc; {}", e.what());
   }
@@ -842,6 +750,13 @@ int main(int argc, char *argv[]) {
                             get_argument<int>("input-channels"));
 
   /**
+   * Grab command-line arguments.
+   */
+  auto room_id = get_argument<std::string>("room-id");
+  auto user_id = get_argument<std::string>("user-id");
+  auto gateway = get_argument<std::string>("gateway");
+
+  /**
    * Generate a room token (JWT) to authenticate and join an ODIN room.
    *
    * ====== IMPORTANT ======
@@ -879,10 +794,7 @@ int main(int argc, char *argv[]) {
     }
     LOG_DEBUG("using access key: {}", access_key);
 
-    room_token = generate_token(
-        token_generator, has_argument("bypass-gateway") ? "sfu" : "gateway",
-        get_argument<std::string>("room-id"),
-        get_argument<std::string>("user-id"));
+    room_token = generate_token(token_generator, room_id, user_id);
     token_generator.reset();
   } else {
     room_token = get_argument<std::string>("room-token");
@@ -890,30 +802,29 @@ int main(int argc, char *argv[]) {
   LOG_DEBUG("using room token: {}", room_token);
 
   /**
-   * Spawn a new connection pool for transparent connection management.
+   * Build custom authentication string.
    */
-  OdinConnectionPool *connection_pool;
-  OdinConnectionPoolSettings settings = {
-      .on_datagram = &on_datagram,
-      .on_rpc = &on_rpc,
-      .user_data = reinterpret_cast<void *>(&state),
-  };
-  CHECK(odin_connection_pool_create(settings, &connection_pool));
-
-  auto url = get_argument<std::string>("server-url");
-  LOG_INFO("connecting to: {}", url);
+  nlohmann::json authentication = nlohmann::json::object({
+      // mandatory room token
+      {"token", room_token},
+      // optional room id in caase the token contains multiple room ids
+      {"room_id", room_id},
+      // optional peer user data
+      {"user_data", {{"foo", "bar"}, {"time", std::time(0)}}},
+  });
 
   /*
    * Create a new ODIN room pointer and establish an encrypted connection to
    * the ODIN network using the given cipher and join the specified room.
    */
-  float position[3] = {0.0, 0.0, 0.0};
-  auto user_data = get_argument<std::string>("peer-user-data");
   OdinRoom *room;
-  CHECK(odin_room_create_ex(connection_pool, url.data(), room_token.data(),
-                            nullptr,
-                            reinterpret_cast<const uint8_t *>(user_data.data()),
-                            user_data.length(), position, cipher, &room));
+  OdinRoomEvents events{
+      .on_datagram = &on_datagram,
+      .on_rpc = &on_rpc,
+      .user_data = reinterpret_cast<void *>(&state),
+  };
+  CHECK(odin_room_create(gateway.data(), authentication.dump().data(), &events,
+                         cipher, &room));
   state.room = {room, odin_room_free};
   state.cipher = cipher;
 
@@ -928,11 +839,6 @@ int main(int argc, char *argv[]) {
    */
   LOG_INFO("leaving room and closing connection to server");
   odin_room_close(room);
-
-  /**
-   * Release the connection pool.
-   */
-  odin_connection_pool_free(connection_pool);
 
   /**
    * Stop playback/capture audio devices.

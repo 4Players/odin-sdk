@@ -26,256 +26,117 @@ template <typename T> struct adl_serializer<std::optional<T>> {
   }
 };
 
-template <typename... Ts> struct adl_serializer<std::variant<Ts...>> {
-  static void to_json(json &j, const std::variant<Ts...> &v) {
-    std::visit([&j](auto const &x) { j = x; }, v);
-  }
-  static void from_json(const json &j, std::variant<Ts...> &v) {
-    auto kind = j.at("kind").get<std::string>();
-    bool matched = (... || ([&] {
-                      auto o = Ts{};
-                      if (kind == o.kind) {
-                        v = j.get<Ts>();
-                        return true;
-                      }
-                      return false;
-                    }()));
-    if (!matched) {
-      throw std::runtime_error("unexpected rpc notification kind: " + kind);
-    }
-  }
-};
-
 } // namespace nlohmann
 
 namespace api {
 
-// ─── BASIC STRUCTS ───────────────────────────────────────────────────────────
+// ─── BASIC TYPES ───────────────────────────────────────────────────────────
 
-struct Media {
-  uint16_t id;
-  nlohmann::json properties;
-  bool paused;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Media, id, properties, paused);
+using PeerId = uint32_t;
 
-struct Peer {
-  uint64_t id;
-  std::string user_id;
-  nlohmann::json::binary_t user_data;
-  std::vector<Media> medias;
-  std::vector<std::string> tags;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Peer, id, user_id, user_data, medias, tags);
+using PeerUserData = nlohmann::json;
 
-struct Room {
-  std::string id;
-  std::string customer;
-  nlohmann::json::binary_t user_data;
-  std::vector<Peer> peers;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Room, id, customer, user_data, peers);
+using Parameters = nlohmann::json::object_t;
+
+using Message = nlohmann::json::binary_t;
+
+using ChannelMask = uint64_t;
+
+// ─── SUPPORTED EVENTS --──────────────────────────────────────────────────────
 
 namespace server {
 
-// ─── ROOM UPDATE EVENT VARIANTS ──────────────────────────────────────────────
-
-/**
- * Emitted after joining once initial room information was processed.
- */
-struct RoomUpdateJoined {
-  std::string kind = "Joined";
-  Room room;
-  std::vector<uint16_t> media_ids;
-  uint64_t own_peer_id;
+struct Joined {
+  PeerId own_peer_id;
+  std::string room_id;
+  std::string customer;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RoomUpdateJoined, kind, room, media_ids,
-                                   own_peer_id);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Joined, own_peer_id, room_id, customer);
 
-/**
- * Emitted when the global user data of the room was changed.
- */
-struct RoomUpdateUserDataChanged {
-  std::string kind = "UserDataChanged";
-  nlohmann::json::binary_t user_data;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RoomUpdateUserDataChanged, kind, user_data);
-
-/**
- * Emitted after being removed from a room by the server.
- */
-struct RoomUpdateLeft {
-  std::string kind = "Left";
+struct Left {
   std::string reason;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RoomUpdateLeft, kind, reason);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Left, reason);
 
-/**
- * Emitted when other peers joined the room.
- */
-struct RoomUpdatePeerJoined {
-  std::string kind = "PeerJoined";
-  Peer peer;
+struct PeerJoined {
+  PeerId peer_id;
+  std::string user_id;
+  std::optional<PeerUserData> user_data;
+  std::optional<std::vector<std::string>> tags;
+  std::optional<Parameters> parameters;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RoomUpdatePeerJoined, kind, peer);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PeerJoined, peer_id, user_id,
+                                                user_data, tags, parameters);
 
-/**
- * Emitted when other peers left the room.
- */
-struct RoomUpdatePeerLeft {
-  std::string kind = "PeerLeft";
-  uint64_t peer_id;
+struct PeerLeft {
+  PeerId peer_id;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RoomUpdatePeerLeft, kind, peer_id);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PeerLeft, peer_id);
 
-using RoomUpdateKinds =
-    std::variant<RoomUpdateJoined, RoomUpdateUserDataChanged, RoomUpdateLeft,
-                 RoomUpdatePeerJoined, RoomUpdatePeerLeft>;
-
-struct RoomUpdated {
-  std::vector<RoomUpdateKinds> updates;
+struct PeerChanged {
+  PeerId peer_id;
+  std::optional<PeerUserData> user_data;
+  std::optional<std::vector<std::string>> tags;
+  std::optional<Parameters> parameters;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(RoomUpdated, updates);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PeerChanged, peer_id, user_data,
+                                                tags, parameters);
 
-// ─── PEER UPDATE EVENT VARIANTS ──────────────────────────────────────────────
-
-/**
- * Emitted when other peers updated their user data.
- */
-struct PeerUpdateUserDataChanged {
-  std::string kind = "UserDataChanged";
-  uint64_t peer_id;
-  nlohmann::json::binary_t user_data;
+struct NewReconnectToken {
+  std::string token;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PeerUpdateUserDataChanged, kind, peer_id,
-                                   user_data);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(NewReconnectToken, token);
 
-/**
- * Emitted when other peers started a media stream.
- */
-struct PeerUpdateMediaStarted {
-  std::string kind = "MediaStarted";
-  uint64_t peer_id;
-  Media media;
-  nlohmann::json properties; // deprecated
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PeerUpdateMediaStarted, kind, peer_id, media,
-                                   properties);
-
-/**
- * Emitted when other peers stopped a media stream.
- */
-struct PeerUpdateMediaStopped {
-  std::string kind = "MediaStopped";
-  uint64_t peer_id;
-  uint16_t media_id;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PeerUpdateMediaStopped, kind, peer_id,
-                                   media_id);
-
-/**
- * Emitted when the tags of another peer were changed.
- */
-struct PeerUpdateTagsChanged {
-  std::string kind = "TagsChanged";
-  uint64_t peer_id;
-  std::vector<std::string> tags;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PeerUpdateTagsChanged, kind, peer_id, tags);
-
-using PeerUpdated =
-    std::variant<PeerUpdateUserDataChanged, PeerUpdateMediaStarted,
-                 PeerUpdateMediaStopped, PeerUpdateTagsChanged>;
-
-// ─── INCOMING ARBITRARY DATA EVENT ───────────────────────────────────────────
-
-/**
- * Emitted when others peers sent a message with arbitrary data.
- */
 struct MessageReceived {
-  uint64_t sender_peer_id;
-  nlohmann::json::binary_t message;
+  PeerId sender_peer_id;
+  Message message;
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(MessageReceived, sender_peer_id, message);
 
-// ─── ROOM STATUS CHANGED EVENT ───────────────────────────────────────────────
-
-/**
- * Emitted when the status of the underlying connection for a room changed.
- */
 struct RoomStatusChanged {
-  std::optional<std::string> message;
   std::string status;
+  std::optional<std::string> message;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(RoomStatusChanged, message,
-                                                status);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(RoomStatusChanged, status,
+                                                message);
 
-// ─── SUPPORTED EVENTS AND RESPONSE TYPES ─────────────────────────────────────
-
-/**
- * Emitted when we received the response for a command RPC.
- */
-struct CommandFinished {
-  std::optional<std::string> error;
-  nlohmann::json result;
+struct Error {
+  std::string message;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(CommandFinished, error, result);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Error, message);
 
-using Event = std::variant<CommandFinished, RoomUpdated, PeerUpdated,
-                           MessageReceived, RoomStatusChanged>;
+using Event =
+    std::variant<Joined, Left, PeerJoined, PeerLeft, PeerChanged,
+                 NewReconnectToken, MessageReceived, RoomStatusChanged, Error>;
 
 }; // namespace server
 
-namespace client {
-
-struct UpdatePeer {
-  std::vector<uint8_t> user_data;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(UpdatePeer, user_data);
-
-struct UpdatePosition {
-  std::vector<float> coordinates;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(UpdatePosition, coordinates);
-
-struct StartMedia {
-  uint16_t media_id;
-  nlohmann::json properties;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(StartMedia, media_id, properties);
-
-struct StopMedia {
-  uint16_t media_id;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(StopMedia, media_id);
-
-struct PauseMedia {
-  uint16_t media_id;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PauseMedia, media_id);
-
-struct ResumeMedia {
-  uint16_t media_id;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(ResumeMedia, media_id);
-
-struct SendMessage {
-  nlohmann::json::binary_t message;
-  std::optional<std::vector<uint64_t>> target_peer_ids;
-};
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SendMessage, message,
-                                                target_peer_ids);
-
 // ─── SUPPORTED COMMANDS ──────────────────────────────────────────────────────
 
-using Command = std::variant<UpdatePeer, UpdatePosition, StartMedia, StopMedia,
-                             PauseMedia, ResumeMedia, SendMessage>;
+namespace client {
+
+struct ChangeSelf {
+  PeerUserData user_data;
+  std::optional<Parameters> parameters;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(ChangeSelf, user_data);
+
+struct SetChannelMasks {
+  std::vector<std::pair<PeerId, ChannelMask>> masks;
+  bool reset;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(SetChannelMasks, masks, reset);
+
+struct SendMessage {
+
+  nlohmann::json::binary_t message;
+  std::optional<std::vector<PeerId>> peer_ids;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SendMessage, message, peer_ids);
+
+using Command = std::variant<ChangeSelf, SetChannelMasks, SendMessage>;
 
 } // namespace client
-
-/**
- * Helper to combine multiple lambda functions for variant visitation.
- */
 
 template <class... Ts> struct visitor : Ts... {
   using Ts::operator()...;
@@ -288,78 +149,47 @@ namespace nlohmann {
 
 template <> struct adl_serializer<api::server::Event> {
   static void from_json(const json &j, api::server::Event &e) {
-    if (!j.is_array() || j.empty() || !j[0].is_number_integer()) {
+    if (!j.is_object() || j.size() != 1) {
       throw std::runtime_error("invalid rpc payload format");
     }
-    int type = j.at(0).get<int>();
-    switch (type) {
-    case 1:
-      // MessagePack-RPC Response Message [type, msgid, error, result]
-      {
-        if (j.size() < 4) {
-          throw std::runtime_error("invalid rpc format");
-        }
-        e = api::server::CommandFinished{
-            j[2].is_null()
-                ? std::nullopt
-                : std::optional<std::string>{j[2].get<std::string>()},
-            j[3]};
-      }
-      break;
-    case 2:
-      // MessagePack-RPC Notification Message [type, method, params]
-      {
-        if (j.size() < 3) {
-          throw std::runtime_error("invalid rpc format");
-        }
-        auto event_name = j.at(1).get<std::string>();
-        json event_data = j.at(2);
-        if (event_name == "RoomUpdated") {
-          e = event_data.get<api::server::RoomUpdated>();
-        } else if (event_name == "PeerUpdated") {
-          e = event_data.get<api::server::PeerUpdated>();
-        } else if (event_name == "MessageReceived") {
-          e = event_data.get<api::server::MessageReceived>();
-        } else if (event_name == "RoomStatusChanged") {
-          e = event_data.get<api::server::RoomStatusChanged>();
-        } else {
-          throw std::runtime_error("unknown event name: " + event_name);
-        }
-      }
-      break;
-    default:
-      throw std::runtime_error("unexpected rpc message type: " +
-                               std::to_string(type));
+    const auto &event_name = j.cbegin().key();
+    const auto &event_data = j.cbegin().value();
+    if (event_name == "Joined") {
+      e = event_data.get<api::server::Joined>();
+    } else if (event_name == "Left") {
+      e = event_data.get<api::server::Left>();
+    } else if (event_name == "PeerJoined") {
+      e = event_data.get<api::server::PeerJoined>();
+    } else if (event_name == "PeerLeft") {
+      e = event_data.get<api::server::PeerLeft>();
+    } else if (event_name == "PeerChanged") {
+      e = event_data.get<api::server::PeerChanged>();
+    } else if (event_name == "NewReconnectToken") {
+      e = event_data.get<api::server::NewReconnectToken>();
+    } else if (event_name == "MessageReceived") {
+      e = event_data.get<api::server::MessageReceived>();
+    } else if (event_name == "RoomStatusChanged") {
+      e = event_data.get<api::server::RoomStatusChanged>();
+    } else if (event_name == "Error") {
+      e = event_data.get<api::server::Error>();
+    } else {
+      throw std::runtime_error("unknown event name: " + event_name);
     }
   }
 };
 
 template <> struct adl_serializer<api::client::Command> {
   static void to_json(json &j, const api::client::Command &c) {
-    j = std::visit(
-        api::visitor{
-            [](api::client::UpdatePeer const &args) {
-              return nlohmann::json::array({0, 0, "UpdatePeer", args});
-            },
-            [](api::client::UpdatePosition const &args) {
-              return nlohmann::json::array({0, 0, "UpdatePosition", args});
-            },
-            [](api::client::StartMedia const &args) {
-              return nlohmann::json::array({0, 0, "StartMedia", args});
-            },
-            [](api::client::StopMedia const &args) {
-              return nlohmann::json::array({0, 0, "StopMedia", args});
-            },
-            [](api::client::PauseMedia const &args) {
-              return nlohmann::json::array({0, 0, "PauseMedia", args});
-            },
-            [](api::client::ResumeMedia const &args) {
-              return nlohmann::json::array({0, 0, "ResumeMedia", args});
-            },
-            [](api::client::SendMessage const &args) {
-              return nlohmann::json::array({0, 0, "SendMessage", args});
-            }},
-        c);
+    j = std::visit(api::visitor{[](api::client::ChangeSelf const &args) {
+                                  return json{{"ChangeSelf", args}};
+                                },
+                                [](api::client::SetChannelMasks const &args) {
+                                  return json{{"SetChannelMasks", args}};
+                                },
+                                [](api::client::SendMessage const &args) {
+                                  return json{{"SendMessage", args}};
+                                }},
+                   c);
   }
 };
 
