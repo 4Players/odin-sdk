@@ -22,6 +22,9 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
    - [Audio Pipelines & Effects](#audio-pipelines-and-effects)
    - [User Data](#user-data)
    - [Proximity Chat](#proximity-chat)
+      - [Channel Masks](#channel-masks)
+      - [Updating Positions](#updating-positions)
+      - [Background Updates](#background-updates)
    - [Messages](#messages)
    - [End-to-End Encryption](#end-to-end-encryption-cipher)
 - [Testing](#testing)
@@ -451,14 +454,6 @@ odin_encoder_create_ex(peer_id, sample_rate, stereo, application_voip, bitrate_k
 ```
 
 Background updates allow the server to continue culling and updating spatial relationships even when the user is silent, which is particularly useful in open-world or large multiplayer environments where players may move frequently without constantly transmitting audio.
-
-If you want to remove a previously set position for a given channel mask, you can call `odin_encoder_clear_position()`. This is useful if a channel becomes inactive or you no longer want the server to consider that channel for proximity calculations:
-
-```cpp
-odin_encoder_clear_position(encoder, channel_mask);
-```
-
-Once cleared, the server will stop using positional data for that channel until a new position is set.
 
 ### Messages
 
