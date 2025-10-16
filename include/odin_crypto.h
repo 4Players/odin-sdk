@@ -2,7 +2,7 @@
 
 #pragma once
 
-/** @file */
+/** @file odin_crypto.h */
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include "odin.h"
 
-#define ODIN_CRYPTO_VERSION "1.0.0"
+#define ODIN_CRYPTO_VERSION "2.0.0"
 
 #define OdinCipherImpl_ADDITIONAL_CAPACITY_DATAGRAM (TAG_SIZE + 12)
 
@@ -35,7 +35,7 @@ extern "C" {
 
 OdinCipher *odin_crypto_create(const char *version);
 
-OdinCryptoPeerStatus odin_crypto_get_peer_status(OdinCipher *cipher, uint64_t peer_id);
+OdinCryptoPeerStatus odin_crypto_get_peer_status(OdinCipher *cipher, uint32_t peer_id);
 
 int32_t odin_crypto_set_password(OdinCipher *cipher,
                                  const uint8_t *password,

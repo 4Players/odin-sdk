@@ -2,7 +2,7 @@
 
 #pragma once
 
-/** @file */
+/** @file odin.h */
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -10,112 +10,121 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.8.1"
+#define ODIN_VERSION "2.0.0"
 
 /**
- * Defines known error codes returned by ODIN functions.
+ * Defines standard error codes returned by ODIN functions. Non-negative values indicate success
+ * or non-error states while negative values indicate errors.
  */
 typedef enum OdinError {
     /**
-     * Operation completed successfully
+     * Operation completed successfully.
      */
     ODIN_ERROR_SUCCESS = 0,
     /**
-     * No data available
+     * No data available.
      */
     ODIN_ERROR_NO_DATA = 1,
     /**
-     * The runtime initialization failed
+     * The runtime initialization failed.
      */
     ODIN_ERROR_INITIALIZATION_FAILED = -1,
     /**
-     * The specified API version is not supported
+     * The specified API version is not supported.
      */
     ODIN_ERROR_UNSUPPORTED_VERSION = -2,
     /**
-     * The object is in an unexpected state
+     * The object is in an unexpected state.
      */
     ODIN_ERROR_UNEXPECTED_STATE = -3,
     /**
-     * The object is closed
+     * The object is closed.
      */
     ODIN_ERROR_CLOSED = -4,
     /**
-     * A mandatory argument is null
+     * A mandatory argument is null.
      */
     ODIN_ERROR_ARGUMENT_NULL = -11,
     /**
-     * A provided argument is too small
+     * A provided argument is too small.
      */
     ODIN_ERROR_ARGUMENT_TOO_SMALL = -12,
     /**
-     * A provided argument is out of the expected bounds
+     * A provided argument is out of the expected bounds.
      */
     ODIN_ERROR_ARGUMENT_OUT_OF_BOUNDS = -13,
     /**
-     * A provided string argument is not valid UTF-8
+     * A provided string argument is not valid UTF-8.
      */
     ODIN_ERROR_ARGUMENT_INVALID_STRING = -14,
     /**
-     * A provided handle argument is invalid
+     * A provided handle argument is invalid.
      */
     ODIN_ERROR_ARGUMENT_INVALID_HANDLE = -15,
     /**
-     * A provided identifier argument is invalid
+     * A provided identifier argument is invalid.
      */
     ODIN_ERROR_ARGUMENT_INVALID_ID = -16,
     /**
-     * The provided version is invalid
+     * A provided JSON argument is invalid.
+     */
+    ODIN_ERROR_ARGUMENT_INVALID_JSON = -17,
+    /**
+     * The provided version is invalid.
      */
     ODIN_ERROR_INVALID_VERSION = -21,
     /**
-     * The provided access key is invalid
+     * The provided access key is invalid.
      */
     ODIN_ERROR_INVALID_ACCESS_KEY = -22,
     /**
-     * The provided gateway/server address is invalid
+     * The provided gateway/server address is invalid.
      */
     ODIN_ERROR_INVALID_URI = -23,
     /**
-     * The provided token is invalid
+     * The provided token is invalid.
      */
     ODIN_ERROR_INVALID_TOKEN = -24,
     /**
-     * The provided effect is not compatible to the expected effect type
+     * The provided effect is not compatible with the expected effect type.
      */
     ODIN_ERROR_INVALID_EFFECT = -25,
     /**
-     * The provided MessagePack encoded bytes are invalid
+     * The provided MessagePack encoded bytes are invalid.
      */
     ODIN_ERROR_INVALID_MSG_PACK = -26,
     /**
-     * The provided JSON string invalid
+     * The provided JSON string is invalid.
      */
     ODIN_ERROR_INVALID_JSON = -27,
     /**
-     * The provided token does not grant access to the requested room
+     * The provided token does not grant access to the requested room.
      */
     ODIN_ERROR_TOKEN_ROOM_REJECTED = -31,
     /**
-     * The token is missing a customer identifier
+     * The token is missing a customer identifier.
      */
     ODIN_ERROR_TOKEN_MISSING_CUSTOMER = -32,
     /**
-     * The audio processing module reported an error
+     * The audio processing module reported an error.
      */
     ODIN_ERROR_AUDIO_PROCESSING_FAILED = -41,
     /**
-     * The setup process of the Opus audio codec reported an error
+     * The setup process of the Opus audio codec reported an error.
      */
     ODIN_ERROR_AUDIO_CODEC_CREATION_FAILED = -42,
     /**
-     * Encoding of an audio packet failed
+     * Encoding of an audio packet failed.
      */
     ODIN_ERROR_AUDIO_ENCODING_FAILED = -43,
     /**
-     * Decoding of an audio packet failed
+     * Decoding of an audio packet failed.
      */
     ODIN_ERROR_AUDIO_DECODING_FAILED = -44,
+    /**
+     * Position limit reached.
+     */
+    ODIN_ERROR_AUDIO_POSITION_LIMIT_REACHED = -45,
 } OdinError;
 
 /**
@@ -123,17 +132,17 @@ typedef enum OdinError {
  */
 typedef enum OdinEffectType {
     /**
-     * Voice Activity Detection (VAD) effect for detecting active speech segments in an audio stream
+     * Voice Activity Detection (VAD) for detecting speech segments in an audio stream.
      */
-    ODIN_EFFECT_TYPE_VAD,
+    ODIN_EFFECT_TYPE_VAD = 0,
     /**
-     * Audio Processing Module (APM) effect to apply audio enhancements like noise suppression
+     * Audio Processing Module (APM) for enhancements such as noise suppression or echo cancellation.
      */
-    ODIN_EFFECT_TYPE_APM,
+    ODIN_EFFECT_TYPE_APM = 1,
     /**
-     * Custom user-defined audio processing effect that can be integrated into the audio pipeline
+     * Custom user-defined audio processing effect that can be injected into the audio pipeline.
      */
-    ODIN_EFFECT_TYPE_CUSTOM,
+    ODIN_EFFECT_TYPE_CUSTOM = 2,
 } OdinEffectType;
 
 /**
@@ -142,17 +151,17 @@ typedef enum OdinEffectType {
  */
 typedef enum OdinGainControllerVersion {
     /**
-     * AGC is disabled; the signal is not modified
+     * AGC is disabled. The signal is untouched.
      */
-    ODIN_GAIN_CONTROLLER_VERSION_NONE,
+    ODIN_GAIN_CONTROLLER_VERSION_DISABLED = 0,
     /**
-     * Legacy AGC with adaptive digital gain control and a limiter
+     * Legacy AGC with adaptive digital gain and limiter.
      */
-    ODIN_GAIN_CONTROLLER_VERSION_V1,
+    ODIN_GAIN_CONTROLLER_VERSION_V1 = 1,
     /**
-     * Enhanced AGC with improved digital processing and an input volume controller
+     * Enhanced AGC with digital processing and input volume control.
      */
-    ODIN_GAIN_CONTROLLER_VERSION_V2,
+    ODIN_GAIN_CONTROLLER_VERSION_V2 = 2,
 } OdinGainControllerVersion;
 
 /**
@@ -161,41 +170,31 @@ typedef enum OdinGainControllerVersion {
  */
 typedef enum OdinNoiseSuppressionLevel {
     /**
-     * Noise suppression is disabled
+     * Disable noise suppression.
      */
-    ODIN_NOISE_SUPPRESSION_LEVEL_NONE,
+    ODIN_NOISE_SUPPRESSION_LEVEL_NONE = 0,
     /**
-     * Use low suppression (6 dB)
+     * Use low suppression (6 dB).
      */
-    ODIN_NOISE_SUPPRESSION_LEVEL_LOW,
+    ODIN_NOISE_SUPPRESSION_LEVEL_LOW = 1,
     /**
-     * Use moderate suppression (12 dB)
+     * Use moderate suppression (12 dB).
      */
-    ODIN_NOISE_SUPPRESSION_LEVEL_MODERATE,
+    ODIN_NOISE_SUPPRESSION_LEVEL_MODERATE = 2,
     /**
-     * Use high suppression (18 dB)
+     * Use high suppression (18 dB).
      */
-    ODIN_NOISE_SUPPRESSION_LEVEL_HIGH,
+    ODIN_NOISE_SUPPRESSION_LEVEL_HIGH = 3,
     /**
-     * Use very high suppression (21 dB)
+     * Use very high suppression (21 dB).
      */
-    ODIN_NOISE_SUPPRESSION_LEVEL_VERY_HIGH,
+    ODIN_NOISE_SUPPRESSION_LEVEL_VERY_HIGH = 4,
 } OdinNoiseSuppressionLevel;
-
-/**
- * An opaque type representing an ODIN connection pool, which encapsulates the internal management
- * of all connections used by the clients. It is responsible for creating, retrieving and managing
- * communication channels, handling room join requests and processing associated authorization and
- * connection state changes. The connection pool ensures thread-safe access and coordinated shutdown
- * of active connections. Additionally, it allows joining multiple rooms through the same connection
- * by performing transparent connection sharing if possible.
- */
-typedef struct OdinConnectionPool OdinConnectionPool;
 
 /**
  * Represents a decoder for media streams from remote voice chat clients, which encapsulates all
  * the components required to process incoming audio streams. It includes an egress resampler for
- * sample rate conversion, an Opus decoder for decompressing audio data, and a customizable audio
+ * sample rate conversion, an Opus decoder for decompressing audio data and a customizable audio
  * pipeline that enables the application of effects to modify the raw audio samples.
  */
 typedef struct OdinDecoder OdinDecoder;
@@ -218,51 +217,50 @@ typedef struct OdinEncoder OdinEncoder;
 typedef struct OdinPipeline OdinPipeline;
 
 /**
- * An opaque type representing an ODIN room, which manages by the underlying connection through
- * a shared connection pool. This abstraction provides a high-level interface for joining rooms,
- * managing persistent state and sending/receiving data, making it easier to integrate room-based
- * interactions into your application.
+ * An opaque type representing an ODIN room handle, which is managed by the underlying connection.
+ * This abstraction provides a high-level interface for joining rooms, managing persistent state
+ * and sending/receiving data, making it easier to integrate room-based interactions into your
+ * application.
  */
 typedef struct OdinRoom OdinRoom;
 
 /**
- * A struct for generating ODIN tokens, employed for generating signed room tokens predicated on
+ * A handle for generating ODIN tokens, employed for generating signed room tokens predicated on
  * an access key. Be aware that access keys serve as your unique authentication keys, requisite for
  * generating room tokens to access the ODIN server network. To ensure your security, it's strongly
- * recommended that you _NEVER_ embed an access key within your client code, and instead generate
+ * recommended that you _NEVER_ embed an access key within your client code and instead generate
  * room tokens on a server.
  */
 typedef struct OdinTokenGenerator OdinTokenGenerator;
 
 /**
- * Settings for configuring connection pools to define a set of callback functions that a connection
- * pool uses to notify the application about incoming events. The `on_datagram` callback is invoked
- * when a voice packet is received, providing the internal id of the associated ODIN room handle, the
- * sender media ID, the audio data buffer and a user-defined pointer for contextual information.
- * Similarly, the `on_rpc` callback is triggered for all incoming RPCs. This structure enables flexible
- * integration of custom handling logic across all of your connection pools.
+ * Information attached to an incoming voice datagram. Provides information about the source
+ * peer, the logical channel(s) it was transmitted on and internal transport identifiers. This
+ * allows applications to distinguish streams, handle per-channel positioning, or perform custom
+ * routing and filtering.
  */
-typedef struct OdinConnectionPoolSettings {
-    /**
-     * Mandatory callback for incoming voice packets
-     */
-    void (*on_datagram)(uint64_t room_ref,
-                        uint16_t media_id,
+typedef struct OdinDatagramProperties {
+    uint32_t peer_id;
+    uint64_t channel_mask;
+    uint32_t ssrc_id;
+    uint32_t reserved[4];
+} OdinDatagramProperties;
+
+/**
+ * Room-level callbacks for incoming data and events.
+ */
+typedef struct OdinRoomEvents {
+    void (*on_datagram)(struct OdinRoom *room,
+                        const struct OdinDatagramProperties *properties,
                         const uint8_t *bytes,
                         uint32_t bytes_length,
                         void *user_data);
-    /**
-     * Mandatory callback for incoming messages/events
-     */
-    void (*on_rpc)(uint64_t room_ref, const uint8_t *bytes, uint32_t bytes_length, void *user_data);
-    /**
-     * Optional user-defined data pointer, passed to all callbacks to provide a context or state
-     */
+    void (*on_rpc)(struct OdinRoom *room, const char *json, void *user_data);
     void *user_data;
-} OdinConnectionPoolSettings;
+} OdinRoomEvents;
 
 /**
- * Optional, pluggable encryption module for room communications. An cipher can be attached to an
+ * Optional, pluggable encryption module for room communications. A cipher can be attached to an
  * ODIN room handle on creation to enable customizable, end-to-end encryption (E2EE). When enabled,
  * it intercepts data right before transmission and immediately after reception, allowing custom
  * processing of datagrams, messages and custom peer user data. The structure provides a suite of
@@ -279,7 +277,7 @@ typedef struct OdinCipher {
                                 unsigned char *ciphertext,
                                 uint32_t ciphertext_capacity);
     int32_t (*decrypt_datagram)(struct OdinCipher *cipher,
-                                uint64_t peer_id,
+                                uint32_t peer_id,
                                 const unsigned char *ciphertext,
                                 uint32_t ciphertext_length,
                                 unsigned char *plaintext,
@@ -290,7 +288,7 @@ typedef struct OdinCipher {
                                unsigned char *ciphertext,
                                uint32_t ciphertext_capacity);
     int32_t (*decrypt_message)(struct OdinCipher *cipher,
-                               uint64_t peer_id,
+                               uint32_t peer_id,
                                const unsigned char *ciphertext,
                                uint32_t ciphertext_length,
                                unsigned char *plaintext,
@@ -301,7 +299,7 @@ typedef struct OdinCipher {
                                  unsigned char *ciphertext,
                                  uint32_t ciphertext_capacity);
     int32_t (*decrypt_user_data)(struct OdinCipher *cipher,
-                                 uint64_t peer_id,
+                                 uint32_t peer_id,
                                  const unsigned char *ciphertext,
                                  uint32_t ciphertext_length,
                                  unsigned char *plaintext,
@@ -324,10 +322,6 @@ typedef struct OdinConnectionStats {
      */
     uint64_t udp_tx_bytes;
     /**
-     * The the packet loss percentage of outgoing UDP datagrams
-     */
-    float udp_tx_loss;
-    /**
      * The amount of incoming UDP datagrams observed
      */
     uint64_t udp_rx_datagrams;
@@ -336,79 +330,35 @@ typedef struct OdinConnectionStats {
      */
     uint64_t udp_rx_bytes;
     /**
-     * The the packet loss percentage of incoming UDP datagrams
-     */
-    float udp_rx_loss;
-    /**
-     * Current congestion window of the connection
-     */
-    uint64_t cwnd;
-    /**
-     * Congestion events on the connection
-     */
-    uint64_t congestion_events;
-    /**
-     * Current best estimate of the connection latency (round-trip-time) in milliseconds
+     * Current best estimate of the connection latency (round-trip time) in milliseconds
      */
     float rtt;
 } OdinConnectionStats;
 
 /**
- * Audio decoder jitter statistics.
+ * A 3D position to calculate the peer proximity. The coordinates are expressed as floating-point
+ * values (x, y, z).
  */
-typedef struct OdinDecoderJitterStats {
-    /**
-     * The total number of packets seen by the medias jitter buffer.
-     */
-    uint32_t packets_total;
-    /**
-     * The number of packets available in the medias jitter buffer.
-     */
-    uint32_t packets_buffered;
-    /**
-     * The number of packets processed by the medias jitter buffer.
-     */
-    uint32_t packets_processed;
-    /**
-     * The number of packets dropped because they seemed to arrive too early.
-     */
-    uint32_t packets_arrived_too_early;
-    /**
-     * The number of packets dropped because they seemed to arrive too late.
-     */
-    uint32_t packets_arrived_too_late;
-    /**
-     * The number of packets dropped due to a jitter buffer reset.
-     */
-    uint32_t packets_dropped;
-    /**
-     * The number of packets marked as invalid.
-     */
-    uint32_t packets_invalid;
-    /**
-     * The number of packets marked as duplicates.
-     */
-    uint32_t packets_repeated;
-    /**
-     * The number of packets marked as lost during transmission.
-     */
-    uint32_t packets_lost;
-} OdinDecoderJitterStats;
+typedef struct OdinPosition {
+    float x;
+    float y;
+    float z;
+} OdinPosition;
 
 /**
  * Sensitivity parameters for ODIN voice activity detection module configuration.
  */
 typedef struct OdinSensitivityConfig {
     /**
-     * Indicates whether the sensitivity configuration is enabled
+     * Indicates whether the sensitivity configuration is enabled.
      */
     bool enabled;
     /**
-     * The threshold at which the trigger should engage
+     * The threshold at which the trigger should engage.
      */
     float attack_threshold;
     /**
-     * The threshold at which the trigger should disengage
+     * The threshold at which the trigger should disengage.
      */
     float release_threshold;
 } OdinSensitivityConfig;
@@ -419,14 +369,14 @@ typedef struct OdinSensitivityConfig {
  */
 typedef struct OdinVadConfig {
     /**
-     * When enabled, ODIN will analyze the audio input signal using smart voice detection algorithm
+     * When enabled, ODIN will analyze the audio input signal using smart voice detection algorithms
      * to determine the presence of speech. You can define both the probability required to start
      * and stop transmitting.
      */
     struct OdinSensitivityConfig voice_activity;
     /**
-     * When enabled, ODIN will measure the volume of the input audio signal, thus deciding when a
-     * user is speaking loud enough to transmit voice data. You can define both the root-mean-square
+     * When enabled, ODIN will measure the volume of the input audio signal, deciding when a user
+     * speaks loudly enough to transmit voice data. You can define both the root-mean-square
      * power (dBFS) for when the gate should engage and disengage.
      */
     struct OdinSensitivityConfig volume_gate;
@@ -438,8 +388,8 @@ typedef struct OdinVadConfig {
  */
 typedef struct OdinApmConfig {
     /**
-     * When enabled the echo canceller will try to subtract echoes, reverberation, and unwanted
-     * added sounds from the audio input signal. Note, that you need to process the reverse audio
+     * When enabled the echo canceller will try to subtract echoes, reverberation and unwanted
+     * added sounds from the audio input signal. Note that you need to process the reverse audio
      * stream, also known as the loopback data to be used in the ODIN echo canceller.
      */
     bool echo_canceller;
@@ -484,7 +434,7 @@ extern "C" {
  * Initializes the internal ODIN client runtime with a specified version number, ensuring the correct
  * header file is employed. The majority of the API functions hinge on an active ODIN runtime.
  *
- * Note: Utilize `ODIN_VERSION` to supply the `version` argument.
+ * Note: Use `ODIN_VERSION` to supply the `version` argument.
  */
 enum OdinError odin_initialize(const char *version);
 
@@ -506,62 +456,25 @@ const char *odin_error_get_last_error(void);
 void odin_error_reset_last_error(void);
 
 /**
- * Initializes a new ODIN connection pool with the given settings and outputs a pointer to the
- * newly created connection pool. The connection pool is intended to manage multiple connections
- * efficiently.
+ * Creates a new ODIN room handle and starts the asynchronous connection process. This requires
+ * the address of an ODIN gateway and an authentication string, which must either be a valid and
+ * signed JSON Web Token (JWT) or a serialized JSON object containing the token, initial peer user
+ * data, channel masks and other optional parameters. On success, a new room handle is stored in
+ * `out_room`. If provided, the room events struct enables delivery of room-specific callbacks
+ * to notify your application about incoming datagrams or RPCs. Additionally, an optional ODIN
+ * cipher plugin can be provided to enable end-to-end encryption of room communications.
  */
-enum OdinError odin_connection_pool_create(struct OdinConnectionPoolSettings settings,
-                                           struct OdinConnectionPool **out_connection_pool);
-
-/**
- * Frees the specified ODIN connection pool and releases the resources associated with it. If the
- * connection pool is currently active, it will be properly shut down before being freed.
- */
-void odin_connection_pool_free(struct OdinConnectionPool *connection_pool);
-
-/**
- * Creates a new ODIN room with default parameters. This basic variant requires only the connection
- * pool, the address of an ODIN gateway/server and a JSON Web Token (JWT) for user authentication.
- * On success, it returns the created room handle and immediately triggers asynchronous connection
- * establishment, allowing the local peer to join the room.
- *
- * NOTE: For advanced configuration, see `odin_room_create_ex`.
- */
-enum OdinError odin_room_create(struct OdinConnectionPool *connection_pool,
-                                const char *uri,
-                                const char *token,
+enum OdinError odin_room_create(const char *gateway,
+                                const char *authentication,
+                                struct OdinRoomEvents *events,
+                                struct OdinCipher *cipher,
                                 struct OdinRoom **out_room);
-
-/**
- * Creates a new ODIN room with advanced parameters. In addition to the parameters required by the
- * basic variant, this function accepts an optional room name to select a specific room when the
- * token contains multiple room names (`odin_room_create` simply uses the first room name from the
- * authentication token). It also allows specifying initial peer user data as a byte array and a
- * 3-element float array representing 3D coordinates used for server-side voice packet culling.
- * Additionally, an optional ODIN cipher plugin can be provided to enable end-to-end encryption
- * of room communications. On success, it returns the created room handle and triggers asynchronous
- * connection establishment, allowing the local peer to join the room.
- */
-enum OdinError odin_room_create_ex(struct OdinConnectionPool *connection_pool,
-                                   const char *uri,
-                                   const char *token,
-                                   const char *room_name,
-                                   const unsigned char *user_data,
-                                   uint32_t user_data_length,
-                                   const float position[3],
-                                   struct OdinCipher *cipher,
-                                   struct OdinRoom **out_room);
 
 /**
  * Closes the specified ODIN room handle, thus making our own peer leave the room on the server
  * and closing the connection if needed.
  */
 void odin_room_close(struct OdinRoom *room);
-
-/**
- * Retrieves the unique handle identifier for the specified room. Returns `0` if the room is invalid.
- */
-uint64_t odin_room_get_ref(struct OdinRoom *room);
 
 /**
  * Retrieves the name from the specified room.
@@ -572,14 +485,13 @@ enum OdinError odin_room_get_name(struct OdinRoom *room,
 
 /**
  * Retrieves the underlying connection identifier associated with the room, or `0` if no valid
- * connection exists.
+ * connection exists. The identifier is a 32-bit value.
  */
-uint64_t odin_room_get_connection_id(struct OdinRoom *room);
+uint32_t odin_room_get_connection_id(struct OdinRoom *room);
 
 /**
  * Retrieves detailed connection statistics for the specified room, filling the provided structure
- * with data such as the number of transmitted/received datagrams, bytes, packet loss percentage,
- * congestion window information and round-trip time.
+ * with data such as the number of transmitted/received datagrams, bytes and round-trip time.
  */
 enum OdinError odin_room_get_connection_stats(struct OdinRoom *room,
                                               struct OdinConnectionStats *out_stats);
@@ -593,21 +505,17 @@ enum OdinError odin_room_get_connection_stats(struct OdinRoom *room,
 enum OdinError odin_room_resend_user_data(struct OdinRoom *room);
 
 /**
- * Sends a MessagePack encoded RPC message to the server for the specified room.
+ * Sends a JSON-encoded RPC message to the server for the specified room.
  */
-enum OdinError odin_room_send_rpc(struct OdinRoom *room,
-                                  const uint8_t *bytes,
-                                  uint32_t bytes_length);
+enum OdinError odin_room_send_rpc(struct OdinRoom *room, const char *json);
 
 /**
- * Sends a MessagePack encoded RPC message using a local loopback mechanism. It bypasses
- * the normal network transmission by directly invoking the RPC callback configured in
- * the connection pool settings. It is useful for emitting synthetic events for testing
- * and internal processing without involving the network layer.
+ * Sends a JSON-encoded RPC message using a local loopback mechanism. It bypasses network
+ * transmission by directly invoking the room’s RPC callback from `OdinRoomEvents`. This is
+ * useful for emitting synthetic events for testing and internal processing without involving
+ * the network layer.
  */
-enum OdinError odin_room_send_loopback_rpc(struct OdinRoom *room,
-                                           const uint8_t *bytes,
-                                           uint32_t bytes_length);
+enum OdinError odin_room_send_loopback_rpc(struct OdinRoom *room, const char *json);
 
 /**
  * Sends an encoded voice packet to the server for the specified room.
@@ -622,33 +530,12 @@ enum OdinError odin_room_send_datagram(struct OdinRoom *room,
 void odin_room_free(struct OdinRoom *room);
 
 /**
- * Creates a new instance of an ODIN decoder with default settings used to process the remote
- * media stream specified with the `media_id` parameter. The resulting decoder encapsulates an
- * egress resampler using the given sample rate and channel layout.
+ * Creates a new ODIN decoder with default settings for processing a remote media stream. All
+ * decoded audio will be provided at the specified sample rate and channel count.
  */
-enum OdinError odin_decoder_create(uint16_t media_id,
-                                   uint32_t sample_rate,
+enum OdinError odin_decoder_create(uint32_t sample_rate,
                                    bool stereo,
                                    struct OdinDecoder **out_decoder);
-
-/**
- * Creates a new instance of an ODIN decoder with extended configuration options for processing
- * a remote media stream specified by the `media_id` parameter. Like `odin_decoder_create`, this
- * function initializes a decoder with an embedded egress resampler using the provided sample
- * rate and channel layout. However, this extended version allows you to customize the jitter
- * handling by specifying the number of packets to use in calculating the base jitter.
- *
- * The base jitter is computed as the product of the number of packets  and the duration of a
- * single packet, which corresponds to 20ms in 90kHz units. Setting `base_jitter_packets` to `2`
- * will yield a base jitter of 40ms. Adjusting this parameter can affect how the decoder handles
- * variations in packet arrival times and performs loss concealment during periods of silence or
- * packet loss.
- */
-enum OdinError odin_decoder_create_ex(uint16_t media_id,
-                                      uint32_t sample_rate,
-                                      bool stereo,
-                                      uint8_t base_jitter_packets,
-                                      struct OdinDecoder **out_decoder);
 
 /**
  * Returns a pointer to the internal ODIN audio pipeline instance used by the given decoder.
@@ -673,10 +560,19 @@ enum OdinError odin_decoder_pop(struct OdinDecoder *decoder,
                                 bool *out_is_silent);
 
 /**
- * Collects and returns jitter statistics for the specified decoder.
+ * Returns a bitmask indicating the channels on which the most recently pushed voice packet
+ * was transmitted.
  */
-enum OdinError odin_decoder_get_jitter_stats(struct OdinDecoder *decoder,
-                                             struct OdinDecoderJitterStats *out_stats);
+uint64_t odin_decoder_get_active_channels(struct OdinDecoder *decoder);
+
+/**
+ * Retrieves the list of 3D positions associated with the specified channel mask from the most
+ * recently pushed voice packet.
+ */
+enum OdinError odin_decoder_get_positions(struct OdinDecoder *decoder,
+                                          uint64_t channel_mask,
+                                          struct OdinPosition *out_positions,
+                                          uint32_t *out_positions_length);
 
 /**
  * Frees the resources associated with the specified decoder.
@@ -688,7 +584,8 @@ void odin_decoder_free(struct OdinDecoder *decoder);
  * local sources, such as a microphone. The encoder encapsulates an ingress resampler using the
  * given sample rate and channel layout.
  */
-enum OdinError odin_encoder_create(uint32_t sample_rate,
+enum OdinError odin_encoder_create(uint32_t peer_id,
+                                   uint32_t sample_rate,
                                    bool stereo,
                                    struct OdinEncoder **out_encoder);
 
@@ -698,11 +595,13 @@ enum OdinError odin_encoder_create(uint32_t sample_rate,
  * of whether the application is intended for VoIP, a target bitrate and the encoder's expected
  * packet loss percentage.
  */
-enum OdinError odin_encoder_create_ex(uint32_t sample_rate,
+enum OdinError odin_encoder_create_ex(uint32_t peer_id,
+                                      uint32_t sample_rate,
                                       bool stereo,
                                       bool application_voip,
                                       uint32_t bitrate_kbps,
-                                      uint8_t packet_loss_perc,
+                                      uint32_t packet_loss_perc,
+                                      uint64_t update_position_interval_ms,
                                       struct OdinEncoder **out_encoder);
 
 /**
@@ -720,17 +619,24 @@ enum OdinError odin_encoder_push(struct OdinEncoder *encoder,
                                  uint32_t samples_count);
 
 /**
- * Retrieves an encoded datagram from the encoder's buffer. It can optionally consider multiple
- * media IDs for processing, which can be useful when you're sending a voice packet to more than
- * one room. The encoded data is written to the provided output buffer. Each datagram can include
- * up to 4 media IDs. These IDs are drawn from the pool assigned by the server when joining a room,
- * enabling a single datagram to be routed across multiple rooms.
+ * Retrieves an encoded datagram from the encoder's buffer.
  */
 enum OdinError odin_encoder_pop(struct OdinEncoder *encoder,
-                                const uint16_t *media_ids,
-                                uint32_t media_ids_length,
                                 uint8_t *out_datagram,
                                 uint32_t *out_datagram_length);
+
+/**
+ * Updates the 3D position for the specified channel mask. To assign different positions to
+ * multiple masks, call this function once per mask.
+ */
+enum OdinError odin_encoder_set_position(struct OdinEncoder *encoder,
+                                         uint64_t channel_mask,
+                                         const struct OdinPosition *position);
+
+/**
+ * Clears the 3D position associated with the specified channel mask.
+ */
+enum OdinError odin_encoder_clear_position(struct OdinEncoder *encoder, uint64_t channel_mask);
 
 /**
  * Frees the resources associated with the specified encoder.
@@ -872,21 +778,12 @@ void odin_token_generator_free(struct OdinTokenGenerator *token_generator);
 
 /**
  * Retrieves the ODIN access key used by the specified token generator. An ODIN access key is a 44
- * character long Base64-String that consists of an internal version number, a set of random bytes
+ * character long Base64 string that consists of an internal version number, a set of random bytes
  * and a checksum.
  */
 enum OdinError odin_token_generator_get_access_key(struct OdinTokenGenerator *token_generator,
                                                    char *out_access_key,
                                                    uint32_t *out_access_key_length);
-
-/**
- * Extracts the public key from the access key used by the specified token generator. The public
- * key, derived from the Ed25519 curve, must be shared with _4Players_ to enable verification of
- * a generated room token.
- */
-enum OdinError odin_token_generator_get_public_key(struct OdinTokenGenerator *token_generator,
-                                                   char *out_public_key,
-                                                   uint32_t *out_public_key_length);
 
 /**
  * Extracts the key ID from the access key used by the specified token generator. The key ID is
@@ -898,29 +795,22 @@ enum OdinError odin_token_generator_get_key_id(struct OdinTokenGenerator *token_
                                                uint32_t *out_key_id_length);
 
 /**
- * Signs the provided body using the key ID and access key stored in the token generator to sign
- * the provided body, creating a JSON Web Token (JWT). The EdDSA (Ed25519) algorithm is used for
- * the digital signature.
+ * Extracts the public key from the access key used by the specified token generator. The public
+ * key, derived from the Ed25519 curve, must be shared with _4Players_ to enable verification of
+ * a generated room token.
+ */
+enum OdinError odin_token_generator_get_public_key(struct OdinTokenGenerator *token_generator,
+                                                   char *out_public_key,
+                                                   uint32_t *out_public_key_length);
+
+/**
+ * Signs the provided body using the key ID and access key stored in the token generator, producing
+ * a JSON Web Token (JWT). The EdDSA (Ed25519) algorithm is used for the digital signature.
  */
 enum OdinError odin_token_generator_sign(struct OdinTokenGenerator *token_generator,
                                          const char *body,
                                          char *out_token,
                                          uint32_t *out_token_length);
-
-/**
- * Helper function to deserialize MessagePack encoded data and convert it into a JSON string.
- */
-enum OdinError odin_rpc_bytes_to_json(const uint8_t *bytes,
-                                      uint32_t bytes_length,
-                                      char *out_json,
-                                      uint32_t *out_json_length);
-
-/**
- * Helper function to convert a JSON string into a MessagePack encoded byte array.
- */
-enum OdinError odin_rpc_json_to_bytes(const char *json,
-                                      uint8_t *out_bytes,
-                                      uint32_t *out_bytes_length);
 
 #ifdef __cplusplus
 }  // extern "C"
