@@ -422,6 +422,44 @@ odin_room_send_rpc(room, command.dump().data());
 
 This makes it easy to switch between fully redefining the audio routing configuration and making small, targeted changes on the fly.
 
+#### Updating Positions
+
+Each encoder can publish **per-channel 3D positions**, which the server uses to apply distance culling and spatialization for receivers. You can update your position at any time by calling odin_encoder_set_position() with the appropriate channel mask:
+
+```cpp
+OdinPosition pos = {playerXScaled, playerYScaled, playerZScaled};
+odin_encoder_set_position(encoder, 0x01 | 0x04, &pos);
+```
+
+By default, new ODIN encoders publish on channel 1 at the origin. This is represented internally by a single position entry for channel 1 (`0x01`). If you want to publish on multiple channels, call `odin_encoder_set_position()` with the corresponding bitmask. If you clear all positions, the encoder will stop publishing on those channels entirely.
+
+Use `odin_encoder_clear_position()` to dynamically remove channel positions when a channel becomes inactive. Once cleared, the server will stop using positional data for those channels and no audio will be published on them until a new position is set.
+
+```cpp
+odin_encoder_clear_position(encoder, 0x01);
+```
+
+#### Background Updates
+
+The position is automatically sent with every outgoing audio datagram while the encoder is transmitting. When the encoder is silent, it will send **background position updates periodically** if you configured an update interval when creating the encoder with `odin_encoder_create_ex()`. If no interval was set, positions are only transmitted while speaking. For example, to configure an encoder that sends background position updates twice per second when not talking:
+
+```cpp
+uint64_t update_position_interval_ms = 500;
+
+OdinEncoder* encoder;
+odin_encoder_create_ex(peer_id, sample_rate, stereo, application_voip, bitrate_kbps, expected_packet_loss_perc, position_update_interval_ms, &encoder);
+```
+
+Background updates allow the server to continue culling and updating spatial relationships even when the user is silent, which is particularly useful in open-world or large multiplayer environments where players may move frequently without constantly transmitting audio.
+
+If you want to remove a previously set position for a given channel mask, you can call `odin_encoder_clear_position()`. This is useful if a channel becomes inactive or you no longer want the server to consider that channel for proximity calculations:
+
+```cpp
+odin_encoder_clear_position(encoder, channel_mask);
+```
+
+Once cleared, the server will stop using positional data for that channel until a new position is set.
+
 ### Messages
 
 ODIN allows you to send arbitrary, application-defined messages between peers in the same room. Messages are delivered **reliably** and **in order** over the signaling channel, making them ideal for gameplay events, chat messages, state synchronization or any other non-audio communication. The payload format is entirely up to you - it can be raw bytes, JSON, Protocol Buffers or anything else you choose.
