@@ -83,7 +83,7 @@ int main(int argc, const char *argv[])
    };
 
    OdinRoom *room;
-   odin_room_create(pool, "<SERVER_URL>", "<TOKEN>", &events, NULL, &room);
+   odin_room_create("<SERVER_URL>", "<TOKEN>", &events, NULL, &room);
 
    getchar();
 
