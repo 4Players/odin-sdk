@@ -20,6 +20,7 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
       - [Event Handling](#event-handling)
    - [Audio Encoding and Decoding](#audio-encoding-and-decoding)
    - [Audio Pipelines & Effects](#audio-pipelines-and-effects)
+   - [Audio Events For Talk Status Detection](#audio-events-for-talk-status-detection)
    - [User Data](#user-data)
    - [Proximity Chat](#proximity-chat)
       - [Channel Masks](#channel-masks)
@@ -347,6 +348,48 @@ odin_pipeline_insert_custom_effect(pipeline, index, my_effect_callback, user_dat
 ```
 
 You can remove or reorder effects dynamically as needed. All modifications are thread-safe and take effect immediately.
+
+### Audio Events For Talk Status Detection
+
+ODIN provides built-in audio event callbacks that allow applications to conveniently detect when a peer starts or stops talking - without inserting custom audio effects into the pipeline. Both encoders and decoders support event callbacks through `odin_encoder_set_event_callback` and `odin_decoder_set_event_callback`. These callbacks emit event bitmasks from `OdinAudioEvents`, including `ODIN_AUDIO_EVENTS_IS_SILENT_CHANGED`.
+
+#### Encoder Talk Status (Local Peer)
+
+You can detect whether the local user is speaking by registering an encoder event callback:
+
+```cpp
+void on_encoder_event(OdinEncoder* encoder, OdinAudioEvents events, void* user_data) {
+    if (events & ODIN_AUDIO_EVENTS_IS_SILENT_CHANGED) {
+        bool silent = odin_encoder_is_silent(encoder);
+        printf("You %s talking\n", silent ? "stopped" : "started");
+    }
+}
+
+// register the callback after creating the encoder
+odin_encoder_set_event_callback(encoder, ODIN_AUDIO_EVENTS_IS_SILENT_CHANGED, &on_encoder_event, user_data);
+```
+
+This event fires automatically whenever the encoder decides that the input signal contains speech or silence, based on your configured VAD/APM modules (if any).
+
+#### Decoder Talk Status (Remote Peers)
+
+You can also detect whether remote peers are speaking. Since each peer typically has one decoder, you can pass the peer ID directly as `user_data`.
+The callback can then use it without searching:
+
+```cpp
+void on_decoder_event(OdinDecoder* decoder, OdinAudioEvents events, void* user_data) {
+    if (events & ODIN_AUDIO_EVENTS_IS_SILENT_CHANGED) {
+        auto peer_id = *reinterpret_cast<const uint32_t*>(user_data);
+        bool silent = odin_decoder_is_silent(decoder);
+        printf("peer %u %s talking\n", peer_id, silent ? "stopped" : "started");
+    }
+}
+
+// register the callback after creating the encoder
+odin_decoder_set_event_callback(decoder, ODIN_AUDIO_EVENTS_IS_SILENT_CHANGED, &on_decoder_event, &peer_id);
+```
+
+This lets you trigger UI updates (e.g. "speaking" indicators) or gameplay logic whenever any peer starts or stops talking.
 
 ### User Data
 
