@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "2.0.0"
+#define ODIN_VERSION "2.1.0"
 
 /**
  * Defines standard error codes returned by ODIN functions. Non-negative values indicate success
@@ -128,41 +128,23 @@ typedef enum OdinError {
 } OdinError;
 
 /**
- * Defines the types of audio pipeline effects available.
+ * Audio-related events emitted by encoders and decoders. These values act as bitflags and
+ * can be combined to filter or report multiple events.
  */
-typedef enum OdinEffectType {
+typedef enum OdinAudioEvents {
     /**
-     * Voice Activity Detection (VAD) for detecting speech segments in an audio stream.
+     * Triggered when the silence state changes.
      */
-    ODIN_EFFECT_TYPE_VAD = 0,
+    ODIN_AUDIO_EVENTS_IS_SILENT_CHANGED = 1,
     /**
-     * Audio Processing Module (APM) for enhancements such as noise suppression or echo cancellation.
+     * Triggered when 3D channel positions are added, updated or removed.
      */
-    ODIN_EFFECT_TYPE_APM = 1,
+    ODIN_AUDIO_EVENTS_POSITIONS_CHANGED = 2,
     /**
-     * Custom user-defined audio processing effect that can be injected into the audio pipeline.
+     * Enables all available audio events.
      */
-    ODIN_EFFECT_TYPE_CUSTOM = 2,
-} OdinEffectType;
-
-/**
- * Available versions of the automatic gain controller (AGC) to be used. This adjusts the audio
- * signal's amplitude to reach a target level, helping to maintain a consistent output.
- */
-typedef enum OdinGainControllerVersion {
-    /**
-     * AGC is disabled. The signal is untouched.
-     */
-    ODIN_GAIN_CONTROLLER_VERSION_DISABLED = 0,
-    /**
-     * Legacy AGC with adaptive digital gain and limiter.
-     */
-    ODIN_GAIN_CONTROLLER_VERSION_V1 = 1,
-    /**
-     * Enhanced AGC with digital processing and input volume control.
-     */
-    ODIN_GAIN_CONTROLLER_VERSION_V2 = 2,
-} OdinGainControllerVersion;
+    ODIN_AUDIO_EVENTS_ALL = -1,
+} OdinAudioEvents;
 
 /**
  * Valid levels for aggressiveness of the noise suppression. A higher level will reduce the noise
@@ -192,10 +174,50 @@ typedef enum OdinNoiseSuppressionLevel {
 } OdinNoiseSuppressionLevel;
 
 /**
+ * Available versions of the automatic gain controller (AGC) to be used. This adjusts the audio
+ * signal's amplitude to reach a target level, helping to maintain a consistent output.
+ */
+typedef enum OdinGainControllerVersion {
+    /**
+     * AGC is disabled. The signal is untouched.
+     */
+    ODIN_GAIN_CONTROLLER_VERSION_DISABLED = 0,
+    /**
+     * Legacy AGC with adaptive digital gain and limiter.
+     */
+    ODIN_GAIN_CONTROLLER_VERSION_V1 = 1,
+    /**
+     * Enhanced AGC with digital processing and input volume control.
+     */
+    ODIN_GAIN_CONTROLLER_VERSION_V2 = 2,
+} OdinGainControllerVersion;
+
+/**
+ * Defines the types of audio pipeline effects available.
+ */
+typedef enum OdinEffectType {
+    /**
+     * Voice Activity Detection (VAD) for detecting speech segments in an audio stream.
+     */
+    ODIN_EFFECT_TYPE_VAD = 0,
+    /**
+     * Audio Processing Module (APM) for enhancements such as noise suppression or echo cancellation.
+     */
+    ODIN_EFFECT_TYPE_APM = 1,
+    /**
+     * Custom user-defined audio processing effect that can be injected into the audio pipeline.
+     */
+    ODIN_EFFECT_TYPE_CUSTOM = 2,
+} OdinEffectType;
+
+/**
  * Represents a decoder for media streams from remote voice chat clients, which encapsulates all
  * the components required to process incoming audio streams. It includes an egress resampler for
  * sample rate conversion, an Opus decoder for decompressing audio data and a customizable audio
  * pipeline that enables the application of effects to modify the raw audio samples.
+ *
+ * Encoder operations are thread-safe and the same encoder handle may be accessed concurrently
+ * from multiple threads.
  */
 typedef struct OdinDecoder OdinDecoder;
 
@@ -205,6 +227,9 @@ typedef struct OdinDecoder OdinDecoder;
  * an ingress resampler for sample rate conversion, an Opus encoder for compressing the audio
  * data and a customizable audio pipeline that allows the application of effects to modify the
  * raw audio samples before transmission.
+ *
+ * Encoder operations are thread-safe and the same encoder handle may be accessed concurrently
+ * from multiple threads.
  */
 typedef struct OdinEncoder OdinEncoder;
 
@@ -346,6 +371,20 @@ typedef struct OdinPosition {
 } OdinPosition;
 
 /**
+ * A callback invoked when the decoder reports one or more audio events.
+ */
+typedef void (*OdinDecoderEventCallback)(struct OdinDecoder *decoder,
+                                         enum OdinAudioEvents events,
+                                         void *user_data);
+
+/**
+ * A callback invoked when the encoder reports one or more audio events.
+ */
+typedef void (*OdinEncoderEventCallback)(struct OdinEncoder *encoder,
+                                         enum OdinAudioEvents events,
+                                         void *user_data);
+
+/**
  * Sensitivity parameters for ODIN voice activity detection module configuration.
  */
 typedef struct OdinSensitivityConfig {
@@ -472,7 +511,7 @@ enum OdinError odin_room_create(const char *gateway,
 
 /**
  * Closes the specified ODIN room handle, thus making our own peer leave the room on the server
- * and closing the connection if needed.
+ * and closing the connection if needed. To release resources, call `odin_room_free`` afterwards.
  */
 void odin_room_close(struct OdinRoom *room);
 
@@ -525,7 +564,8 @@ enum OdinError odin_room_send_datagram(struct OdinRoom *room,
                                        uint32_t bytes_length);
 
 /**
- * Destroys the specified ODIN room handle.
+ * Destroys the specified ODIN room handle and releases all underlying resources, even if the
+ * room is still connecting.
  */
 void odin_room_free(struct OdinRoom *room);
 
@@ -561,7 +601,7 @@ enum OdinError odin_decoder_pop(struct OdinDecoder *decoder,
 
 /**
  * Returns a bitmask indicating the channels on which the most recently pushed voice packet
- * was transmitted.
+ * was transmitted. If no packet has been processed yet, the value is `0`.
  */
 uint64_t odin_decoder_get_active_channels(struct OdinDecoder *decoder);
 
@@ -573,6 +613,24 @@ enum OdinError odin_decoder_get_positions(struct OdinDecoder *decoder,
                                           uint64_t channel_mask,
                                           struct OdinPosition *out_positions,
                                           uint32_t *out_positions_length);
+
+/**
+ * Returns whether the decoder is currently processing silence. This reflects the internal
+ * silence detection state of the decoder, which updates as audio is processed. If the
+ * provided handle is invalid, the function returns `true` for safety.
+ */
+bool odin_decoder_is_silent(struct OdinDecoder *decoder);
+
+/**
+ * Registers a callback to receive decoder audio events. The `filter` determines which event
+ * types will trigger the callback, allowing selective handling. Any previously registered
+ * callback is replaced. The callback is invoked with the decoder handle, the combined event
+ * bitmask and the supplied `user_data`.
+ */
+enum OdinError odin_decoder_set_event_callback(struct OdinDecoder *decoder,
+                                               enum OdinAudioEvents filter,
+                                               OdinDecoderEventCallback callback,
+                                               void *user_data);
 
 /**
  * Frees the resources associated with the specified decoder.
@@ -639,13 +697,32 @@ enum OdinError odin_encoder_set_position(struct OdinEncoder *encoder,
 enum OdinError odin_encoder_clear_position(struct OdinEncoder *encoder, uint64_t channel_mask);
 
 /**
+ * Returns whether the encoder is currently processing silence. This reflects the internal
+ * silence detection state of the encoder, which updates as audio is processed. If the
+ * provided handle is invalid, the function returns `true` for safety.
+ */
+bool odin_encoder_is_silent(struct OdinEncoder *encoder);
+
+/**
+ * Registers a callback to receive encoder audio events. The `filter` determines which event
+ * types will trigger the callback, allowing selective handling. Any previously registered
+ * callback is replaced. The callback is invoked with the encoder handle, the combined event
+ * bitmask and the supplied `user_data`.
+ */
+enum OdinError odin_encoder_set_event_callback(struct OdinEncoder *encoder,
+                                               enum OdinAudioEvents filter,
+                                               OdinEncoderEventCallback callback,
+                                               void *user_data);
+
+/**
  * Frees the resources associated with the specified encoder.
  */
 void odin_encoder_free(struct OdinEncoder *encoder);
 
 /**
  * Inserts a Voice Activity Detection (VAD) effect into the audio pipeline at the specified
- * index and returns a unique effect identifier.
+ * index, shifting subsequent effects. An index of `0` inserts at the beginning of the pipeline.
+ * On success, a unique effect identifier is returned.
  */
 enum OdinError odin_pipeline_insert_vad_effect(const struct OdinPipeline *pipeline,
                                                uint32_t index,
@@ -668,8 +745,9 @@ enum OdinError odin_pipeline_set_vad_config(const struct OdinPipeline *pipeline,
                                             const struct OdinVadConfig *config);
 
 /**
- * Inserts an Audio Processing Module (APM) effect into the audio pipeline at the specified index
- * and returns a unique effect identifier.
+ * Inserts an Audio Processing Module (APM) effect into the audio pipeline at the specified
+ * index, shifting subsequent effects. An index of `0` inserts at the beginning of the pipeline.
+ * On success, a unique effect identifier is returned.
  */
 enum OdinError odin_pipeline_insert_apm_effect(const struct OdinPipeline *pipeline,
                                                uint32_t index,
