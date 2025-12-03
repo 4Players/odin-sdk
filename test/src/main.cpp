@@ -924,6 +924,11 @@ int main(int argc, char *argv[]) {
   getchar();
 
   /**
+   * Stop playback/capture audio devices.
+   */
+  state.stop_audio_devices();
+
+  /**
    * Disconnect from the room.
    */
   LOG_INFO("leaving room and closing connection to server");
@@ -933,11 +938,6 @@ int main(int argc, char *argv[]) {
    * Release the connection pool.
    */
   odin_connection_pool_free(connection_pool);
-
-  /**
-   * Stop playback/capture audio devices.
-   */
-  state.stop_audio_devices();
 
   /*`
    * Shutdown the ODIN Voice runtime.
