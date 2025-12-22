@@ -11,9 +11,7 @@
 #include <stdlib.h>
 #include "odin.h"
 
-#define ODIN_CRYPTO_VERSION "2.0.0"
-
-#define OdinCipherImpl_ADDITIONAL_CAPACITY_DATAGRAM (TAG_SIZE + 12)
+#define ODIN_CRYPTO_VERSION "2.0.1"
 
 enum OdinCryptoPeerStatus
 #ifdef __cplusplus
