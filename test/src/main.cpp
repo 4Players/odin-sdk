@@ -90,6 +90,8 @@ void init_arguments(int argc, char *argv[]) {
       ("h,help", "display available options")
       // --version
       ("v,version", "show version number and exit")
+      // --debug
+      ("d,debug", "show verbosity output")
       // --server-url <string>
       ("s,server-url", "server url",
        cxxopts::value<std::string>()->default_value(ODIN_DEFAULT_GW_ADDR))
@@ -100,7 +102,7 @@ void init_arguments(int argc, char *argv[]) {
       ("p,password", "master password to enable end-to-end-encryption",
        cxxopts::value<std::string>())
       // --peer-user-data <string>
-      ("d,peer-user-data", "peer user data to set when joining the room",
+      ("i,peer-user-data", "peer user data to set when joining the room",
        cxxopts::value<std::string>()->default_value(ODIN_DEFAULT_USER_DATA));
   options.add_options("Authorization")
       // --bypass-gateway
@@ -724,6 +726,7 @@ std::string generate_token(OpaquePtr<OdinTokenGenerator> &token_generator,
   auto nbf = time(nullptr);
   auto exp = nbf + 300; /* 5 minutes */
 
+  claims["cid"] = "<no_customer>";
   claims["rid"] = room_id;
   claims["uid"] = user_id;
   claims["aud"] = audience;
@@ -809,7 +812,8 @@ int main(int argc, char *argv[]) {
 #ifndef NDEBUG
   spdlog::set_level(spdlog::level::trace);
 #else
-  spdlog::set_level(spdlog::level::info);
+  spdlog::set_level(has_argument("debug") ? spdlog::level::debug
+                                          : spdlog::level::info);
 #endif
 
   /**
