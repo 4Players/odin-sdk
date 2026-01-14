@@ -72,14 +72,20 @@ The following code snippet illustrates how to join a designated room on a specif
 #include <stdio.h>
 #include "odin.h"
 
+void on_datagram(uint64_t room_ref, uint16_t media_id, const uint8_t *bytes, uint32_t bytes_length, void *user_data)
+{}
+
+void on_rpc(uint64_t room_ref, const uint8_t *bytes, uint32_t bytes_length, void *user_data)
+{}
+
 int main(int argc, const char *argv[])
 {
    odin_initialize(ODIN_VERSION);
 
    OdinConnectionPool *pool;
    OdinConnectionPoolSettings settings = {
-      .on_datagram = NULL,
-      .on_rpc = NULL,
+      .on_datagram = &on_datagram,
+      .on_rpc = &on_rpc,
       .user_data = NULL
    };
    odin_connection_pool_create(settings, &pool);
