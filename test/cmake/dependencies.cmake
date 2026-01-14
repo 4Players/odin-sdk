@@ -57,7 +57,7 @@ message(STATUS "Installing spdlog")
 FetchContent_Declare(
     spdlog
     GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG        v1.16.0
+    GIT_TAG        v1.17.0
     EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(spdlog)
