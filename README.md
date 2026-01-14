@@ -18,6 +18,7 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
    - [Connection Pooling](#connection-pooling)
       - [Voice Data Handling](#voice-data-handling)
       - [Event Handling](#event-handling)
+      - [Event Flow](#event-flow)
    - [Audio Encoding and Decoding](#audio-encoding-and-decoding)
    - [Audio Pipelines & Effects](#audio-pipelines-and-effects)
    - [Audio Events For Talk Status Detection](#audio-events-for-talk-status-detection)
@@ -197,11 +198,163 @@ Events follow a simple object format where the event name is the top-level key, 
 
 This structure makes it easy to pattern-match on event names and handle them accordingly.
 
+#### Event Flow
+
+Understanding the event flow is essential for building responsive applications. The following diagram illustrates a typical connection lifecycle:
+
+```mermaid
+sequenceDiagram
+    participant A as Client A
+    participant S as Server
+    participant B as Client B
+
+    A->>S: Connect + HelloRoom
+    S-->>A: RoomStatusChanged [joining]
+    S-->>A: RoomStatusChanged [joined]
+    S-->>A: Joined
+
+    B->>S: Connect + HelloRoom
+    S-->>B: RoomStatusChanged [joining]
+    S-->>B: RoomStatusChanged [joined]
+    S-->>B: PeerJoined (A)
+    S-->>B: Joined
+    S-->>A: PeerJoined (B)
+
+    A->>S: ChangeSelf
+    S-->>B: PeerChanged (A)
+    
+    A->>S: Voice Datagrams
+    S-->>B: Voice Datagrams
+
+    A->>S: Disconnect
+    S-->>A: RoomStatusChanged [closed]
+    S-->>B: PeerLeft (A)
+```
+
+##### RoomStatusChanged
+
+A synthetic event emitted by the client library when the underlying connection status of an ODIN room changes. This event is not actually sent by the server but generated locally to provide a unified event interface.
+
+| Field     | Type     | Description                                                  |
+| --------- | -------- | ------------------------------------------------------------ |
+| `status`  | `string` | Connection status: `joining`, `joined`, or `closed`          |
+| `message` | `string` | Optional human-readable message explaining the status change |
+
+**Example:**
+```json
+{ "RoomStatusChanged": { "status": "joining", "message": "initial connect" } }
+{ "RoomStatusChanged": { "status": "joined" } }
+{ "RoomStatusChanged": { "status": "closed", "message": "room closed by user request" } }
+```
+
+##### Joined
+
+Emitted after successfully joining a room. Any `PeerJoined` events received before this event represent peers that were already in the room when you connected.
+
+| Field         | Type     | Description                                   |
+| ------------- | -------- | --------------------------------------------- |
+| `own_peer_id` | `u32`    | Your assigned peer ID for this room session   |
+| `room_id`     | `string` | The identifier of the room you joined         |
+| `customer`    | `string` | The customer/organization that owns this room |
+
+**Example:**
+```json
+{ "Joined": { "own_peer_id": 42, "room_id": "lobby", "customer": "acme-corp" } }
+```
+
+##### Left
+
+Emitted when you are removed from the room by the server.
+
+| Field    | Type     | Description                                                              |
+| -------- | -------- | ------------------------------------------------------------------------ |
+| `reason` | `string` | Why you were removed: `room_closing`, `server_closing`, or `peer_kicked` |
+
+**Example:**
+```json
+{ "Left": { "reason": "room_closing" } }
+```
+
+##### PeerJoined
+
+Emitted when another peer joins the room. If received before the `Joined` event, it indicates a peer that was already present when you connected.
+
+| Field        | Type       | Description                                               |
+| ------------ | ---------- | --------------------------------------------------------- |
+| `peer_id`    | `u32`      | Unique identifier for this peer in the room               |
+| `user_id`    | `string`   | Application-defined user identifier from the peer's token |
+| `user_data`  | `object`   | Optional custom metadata attached to the peer             |
+| `tags`       | `string[]` | Optional list of tags assigned to the peer                |
+| `parameters` | `object`   | Optional key-value parameters for the peer                |
+
+**Example:**
+```json
+{ "PeerJoined": { "peer_id": 17, "user_id": "player-abc", "user_data": { "name": "Alice" } } }
+```
+
+##### PeerLeft
+
+Emitted when another peer leaves the room.
+
+| Field     | Type  | Description                       |
+| --------- | ----- | --------------------------------- |
+| `peer_id` | `u32` | The peer ID of the peer that left |
+
+**Example:**
+```json
+{ "PeerLeft": { "peer_id": 17 } }
+```
+
+##### PeerChanged
+
+Emitted when a peer updates their user data, tags, or parameters.
+
+| Field        | Type       | Description                                       |
+| ------------ | ---------- | ------------------------------------------------- |
+| `peer_id`    | `u32`      | The peer ID of the peer that changed              |
+| `user_data`  | `object`   | Updated custom metadata (present if changed)      |
+| `tags`       | `string[]` | Updated list of tags (present if changed)         |
+| `parameters` | `object`   | Updated key-value parameters (present if changed) |
+
+**Example:**
+```json
+{ "PeerChanged": { "peer_id": 17, "user_data": { "name": "Alice", "status": "away" } } }
+```
+
+##### MessageReceived
+
+Emitted when another peer sends you a direct message.
+
+| Field            | Type     | Description                               |
+| ---------------- | -------- | ----------------------------------------- |
+| `sender_peer_id` | `u32`    | The peer ID of the message sender         |
+| `message`        | `binary` | The message payload (application-defined) |
+
+**Example:**
+```json
+{ "MessageReceived": { "sender_peer_id": 17, "message": [104, 101, 108, 108, 111] } }
+```
+
+##### Error
+
+Emitted when an error occurs on the server side.
+
+| Field     | Type     | Description                      |
+| --------- | -------- | -------------------------------- |
+| `message` | `string` | Human-readable error description |
+
+**Example:**
+```json
+{ "Error": { "message": "something went wrong" } }
+```
+
 ### Audio Encoding and Decoding
 
 ODIN separates audio transmission into two core components: **encoders** for outgoing streams and **decoders** for incoming ones. These components handle real-time audio conversion and transport using a shared audio pipeline interface. Internally, each encoder/decoder wraps an Opus codec for compression/decompression as well as an ingress or egress resampler for automatic sample rate conversion. This design provides high performance, low latency and flexible hooks for integrating features like Voice Activity Detection (VAD), audio enhancements (APM) or custom effects.
 
-Unlike earlier versions, there are no separate media objects anymore. Instead, applications are expected to create encoders and decoders as needed - for example, one encoder for the local peer and one decoder per remote peer. It’s also possible to transmit voice on multiple audio channels within the same room simultaneously. In theses cases, the `on_datagram` callback provides the corresponding channel mask so you can decide how to route or process incoming audio.
+Unlike earlier versions, there are no separate media objects anymore. Instead, applications are expected to create encoders and decoders as needed - for example, one encoder for the local peer and one decoder per remote peer. It's also possible to transmit voice on multiple audio channels within the same room simultaneously. In theses cases, the `on_datagram` callback provides the corresponding channel mask so you can decide how to route or process incoming audio.
+
+When creating encoders and decoders, simply specify the sample rate and channel count (mono or stereo) of your source or target audio material. ODIN handles all internal resampling automatically, so you can feed samples directly from your audio source without manual conversion. All audio data must be provided as 32-bit floats, interleaved, and normalized to `[-1.0, 1.0]`. Internally, ODIN processes audio in 20ms chunks.
 
 #### Encoders (Outgoing Audio)
 
@@ -266,6 +419,43 @@ odin_decoder_pop(decoder, samples, FRAME_SIZE, &is_silent);
 ```
 
 **Note:** The `on_datagram` callback provides the channel mask used for each packet, allowing you to handle multi-channel or spatialized setups efficiently.
+
+#### Streaming an Audio Buffer
+
+The following example demonstrates how to stream a pre-loaded audio buffer (e.g. from a file) into an ODIN room. The key is to feed samples in real-time intervals matching the audio duration. ODIN processes audio internally in 20ms chunks.
+
+```cpp
+// Assuming the audio_buffer contains 32-bit float samples at 48kHz stereo
+const int sample_rate = 48000;
+const int channel_count = 2;
+const int frames_per_20ms = sample_rate * 20 / 1000;           // 960 frames at 48kHz
+const int samples_per_chunk = frames_per_20ms * channel_count; // 1920 samples for stereo
+
+OdinEncoder* encoder;
+odin_encoder_create(peer_id, sample_rate, channel_count == 2, &encoder);
+
+// Stream the buffer in 20ms chunks
+auto next_time = std::chrono::steady_clock::now();
+for (size_t offset = 0; offset < audio_buffer_size; offset += samples_per_chunk) {
+    size_t chunk_size = std::min(samples_per_chunk, audio_buffer_size - offset);
+    odin_encoder_push(encoder, &audio_buffer[offset], chunk_size);
+
+    // Pop and send encoded datagrams
+    for (;;) {
+        uint8_t datagram[2048];
+        uint32_t datagram_length = sizeof(datagram);
+        if (odin_encoder_pop(encoder, datagram, &datagram_length) != ODIN_ERROR_SUCCESS)
+            break;
+        odin_room_send_datagram(room, datagram, datagram_length);
+    }
+
+    // Pace to real-time using wall clock (self-corrects for encoding overhead)
+    next_time += std::chrono::milliseconds(20);
+    std::this_thread::sleep_until(next_time);
+}
+
+odin_encoder_free(encoder);
+```
 
 ### Audio Pipelines and Effects
 
