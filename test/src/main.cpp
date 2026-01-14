@@ -742,6 +742,11 @@ std::string generate_token(OpaquePtr<OdinTokenGenerator> &token_generator,
   return token;
 }
 
+/**
+ * Callback invoked when an audio datagram is received from the room. This
+ * function is registered with the ODIN connection pool to handle incoming
+ * voice packets and forwards them to the matching decoder instance.
+ */
 void on_datagram(uint64_t room_ref, uint16_t media_id, const uint8_t *bytes,
                  uint32_t bytes_length, void *user_data) {
   const auto state = reinterpret_cast<State *>(user_data);
