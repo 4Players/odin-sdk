@@ -18,6 +18,7 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
    - [Connection Pooling](#connection-pooling)
       - [Voice Data Handling](#voice-data-handling)
       - [Event Handling](#event-handling)
+      - [Event Flow](#event-flow)
    - [Audio Encoding and Decoding](#audio-encoding-and-decoding)
    - [Audio Pipelines & Effects](#audio-pipelines-and-effects)
    - [Audio Events For Talk Status Detection](#audio-events-for-talk-status-detection)
@@ -189,9 +190,79 @@ void on_rpc(uint64_t room_ref, const uint8_t *bytes, uint32_t bytes_length, void
 }
 ```
 
+#### Event Flow
+
+The server sends notifications as `[2, method, params]`. Understanding the event flow is essential for building responsive applications.
+
+```mermaid
+sequenceDiagram
+    participant A as Client A
+    participant S as Server
+    participant B as Client B
+
+    A->>S: Connect + Join
+    S-->>A: RoomStatusChanged [Joining]
+    S-->>A: RoomStatusChanged [Joined]
+    S-->>A: RoomUpdated [Joined]
+
+    A->>S: StartMedia
+
+    B->>S: Connect + Join
+    S-->>B: RoomStatusChanged [Joining]
+    S-->>B: RoomStatusChanged [Joined]
+    S-->>B: RoomUpdated [Joined] (includes A)
+    S-->>A: RoomUpdated [PeerJoined] (B)
+
+    B->>S: StartMedia
+    S-->>A: PeerUpdated [MediaStarted] (B)
+
+    A->>S: Voice Datagrams
+    S-->>B: Voice Datagrams
+
+    A->>S: StopMedia
+    S-->>B: PeerUpdated [MediaStopped] (A)
+
+    A->>S: Disconnect
+    S-->>A: RoomStatusChanged (Closed)
+    S-->>B: RoomUpdated [PeerLeft] (A)
+```
+
+##### RoomUpdated
+
+These batched room-level updates are delivered as a notification with method `RoomUpdated`. They contain an `updates` array with one or more of:
+
+| Kind              | Fields                             | Description                                             |
+| ----------------- | ---------------------------------- | ------------------------------------------------------- |
+| `Joined`          | `room`, `media_ids`, `own_peer_id` | Emitted after successfully receiving initial room state |
+| `Left`            | `reason`                           | Emitted when removed from the room by the server        |
+| `PeerJoined`      | `peer`                             | Emitted when another peer joins the room                |
+| `PeerLeft`        | `peer_id`                          | Emitted when another peer leaves the room               |
+| `UserDataChanged` | `user_data`                        | Emitted when the room's global user data changes        |
+
+##### PeerUpdated
+
+Individual peer-level updates are delivered as a notification with method `PeerUpdated`. The payload contains a `kind` field:
+
+| Kind              | Fields                           | Description                                 |
+| ----------------- | -------------------------------- | ------------------------------------------- |
+| `MediaStarted`    | `peer_id`, `media`, `properties` | Emitted when a peer starts a media stream   |
+| `MediaStopped`    | `peer_id`, `media_id`            | Emitted when a peer stops a media stream    |
+| `UserDataChanged` | `peer_id`, `user_data`           | Emitted when a peer updates their user data |
+| `TagsChanged`     | `peer_id`, `tags`                | Emitted when a peer's tags change           |
+
+##### RoomStatusChanged
+
+This synthetic event is emitted when the underlying connection status of an ODIN room changes. It provides a `status` field, which can be one of `Joining`, `Joined`, or `Closed`. Additionally, an optional `message` can contain the reason for the status change.
+
+##### MessageReceived
+
+When another peer sends an arbitrary data message, the server will emit this event. It contains the `sender_peer_id` and the `message`.
+
 ### Audio Encoding and Decoding
 
 ODIN separates audio transmission into two core components: *encoders* for outgoing streams and *decoders* for incoming ones. These components manage real-time audio conversion and transport between devices using a shared audio pipeline interface. They each encapsulate an Opus codec for compression/decompression as well as an ingress or egress resampler for automatic sample rate conversion.
+
+When creating encoders and decoders, simply specify the sample rate and channel count (mono or stereo) of your source or target audio material. ODIN handles all internal resampling automatically, so you can feed samples directly from your audio source without manual conversion. All audio data must be provided as 32-bit floats, interleaved, and normalized to `[-1.0, 1.0]`. Internally, ODIN processes audio in 20ms chunks.
 
 Audio encoders and decoders are built to integrate tightly with the rest of the ODIN runtime and offer high performance and low latency. They provide flexible hooks for custom processing and allow seamless integration of advanced features like voice activity detection (VAD) and audio enhancements (APM).
 
@@ -258,6 +329,41 @@ odin_decoder_pop(decoder, samples, FRAME_SIZE, &is_silent);
 ```
 
 **Note:** Decoders should be created and destroyed dynamically in response to peer update events such as `MediaStarted` or `MediaStopped`.
+
+#### Streaming an Audio Buffer
+
+The following example demonstrates how to stream a pre-loaded audio buffer (e.g. from a file) into an ODIN room. The key is to feed samples in real-time intervals matching the audio duration.
+
+```cpp
+// Assuming the audio_buffer contains 32-bit float samples at 48kHz stereo  
+const int sample_rate = 48000;
+const int channel_count = 2;
+const int frames_per_20ms = sample_rate * 20 / 1000;           // 960 frames at 48kHz
+const int samples_per_chunk = frames_per_20ms * channel_count; // 1920 samples for stereo
+
+OdinEncoder *encoder;
+odin_encoder_create(sample_rate, channel_count == 2, &encoder);
+
+// Stream the buffer in 20ms chunks
+auto next_time = std::chrono::steady_clock::now();
+for (size_t offset = 0; offset < audio_buffer_size; offset += samples_per_chunk) {
+    size_t chunk_size = std::min(samples_per_chunk, audio_buffer_size - offset);
+    odin_encoder_push(encoder, &audio_buffer[offset], chunk_size);
+
+    // Pop and send encoded datagrams
+    for (;;) {
+        uint8_t datagram[2048];
+        uint32_t datagram_length = sizeof(datagram);
+        if (odin_encoder_pop(encoder, &media_id, 1, datagram, &datagram_length) != ODIN_ERROR_SUCCESS)
+            break;
+        odin_room_send_datagram(room, datagram, datagram_length);
+    }
+
+    // Pace to real-time using wall clock (self-corrects for encoding overhead)
+    next_time += std::chrono::milliseconds(20);
+    std::this_thread::sleep_until(next_time);
+}
+```
 
 ### Audio Pipelines and Effects
 
