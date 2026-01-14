@@ -229,7 +229,7 @@ sequenceDiagram
     S-->>B: PeerUpdated [MediaStopped] (A)
 
     A->>S: Disconnect
-    S-->>A: RoomStatusChanged (Closed)
+    S-->>A: RoomStatusChanged [Closed]
     S-->>B: RoomUpdated [PeerLeft] (A)
 ```
 
