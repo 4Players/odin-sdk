@@ -92,8 +92,10 @@ void init_arguments(int argc, char *argv[]) {
       ("h,help", "display available options")
       // --version
       ("v,version", "show version number and exit")
-      // --gateway-address <string>
-      ("s,gateway", "gateway url",
+      // --debug
+      ("d,debug", "show verbosity output")
+      // --server-url <string>
+      ("s,server-url", "server url",
        cxxopts::value<std::string>()->default_value(ODIN_DEFAULT_GW_ADDR))
       // --room-id <string>
       ("r,room-id", "room to join",
@@ -102,6 +104,8 @@ void init_arguments(int argc, char *argv[]) {
       ("p,password", "master password to enable end-to-end-encryption",
        cxxopts::value<std::string>());
   options.add_options("Authorization")
+      // --bypass-gateway
+      ("b,bypass-gateway", "bypass gateway and connect to sfu directly")
       // --room-token <string>
       ("t,room-token", "string to use for authorization",
        cxxopts::value<std::string>())
@@ -626,6 +630,14 @@ std::string generate_token(OpaquePtr<OdinTokenGenerator> &token_generator,
       {"exp", exp},
   };
 
+  if (has_argument("bypass-gateway")) {
+    claims.update({
+        {"adr", get_argument<std::string>("server-url")},
+        {"aud", "sfu"},
+        {"cid", "<no_customer>"},
+    });
+  }
+
   std::string token(1024, '\0');
   uint32_t token_length = token.size();
   CHECK(odin_token_generator_sign(token_generator.get(), claims.dump().c_str(),
@@ -635,6 +647,12 @@ std::string generate_token(OpaquePtr<OdinTokenGenerator> &token_generator,
   return token;
 }
 
+/**
+ * Callback invoked when a voice datagram is received from the room. This
+ * function is registered with the ODIN room to handle incoming audio data.
+ * It verifies the room reference, looks up the decoder for the source peer
+ * and pushes the datagram into it for decoding and playback.
+ */
 void on_datagram(OdinRoom *room, const OdinDatagramProperties *properties,
                  const uint8_t *bytes, uint32_t bytes_length, void *user_data) {
   const auto state = reinterpret_cast<State *>(user_data);
@@ -717,7 +735,8 @@ int main(int argc, char *argv[]) {
 #ifndef NDEBUG
   spdlog::set_level(spdlog::level::trace);
 #else
-  spdlog::set_level(spdlog::level::info);
+  spdlog::set_level(has_argument("debug") ? spdlog::level::debug
+                                          : spdlog::level::info);
 #endif
 
   /**
@@ -754,7 +773,7 @@ int main(int argc, char *argv[]) {
    */
   auto room_id = get_argument<std::string>("room-id");
   auto user_id = get_argument<std::string>("user-id");
-  auto gateway = get_argument<std::string>("gateway");
+  auto gateway = get_argument<std::string>("server-url");
 
   /**
    * Generate a room token (JWT) to authenticate and join an ODIN room.
@@ -809,6 +828,12 @@ int main(int argc, char *argv[]) {
       {"token", room_token},
       // optional room id in caase the token contains multiple room ids
       {"room_id", room_id},
+      // optional list of channel masks
+      {"channel_masks",
+       {
+           // only want to hear peer 1 on channels 1, 3 and 5 (000...00010101)
+           {1, 0x15},
+       }},
       // optional peer user data
       {"user_data", {{"foo", "bar"}, {"time", std::time(0)}}},
   });
@@ -835,15 +860,15 @@ int main(int argc, char *argv[]) {
   getchar();
 
   /**
+   * Stop playback/capture audio devices.
+   */
+  state.stop_audio_devices();
+
+  /**
    * Disconnect from the room.
    */
   LOG_INFO("leaving room and closing connection to server");
   odin_room_close(room);
-
-  /**
-   * Stop playback/capture audio devices.
-   */
-  state.stop_audio_devices();
 
   /*`
    * Shutdown the ODIN Voice runtime.
