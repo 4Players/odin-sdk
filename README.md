@@ -325,14 +325,15 @@ Emitted when a peer updates their user data, tags, or parameters.
 
 Emitted when another peer sends you a direct message.
 
-| Field            | Type     | Description                               |
-| ---------------- | -------- | ----------------------------------------- |
-| `sender_peer_id` | `u32`    | The peer ID of the message sender         |
-| `message`        | `binary` | The message payload (application-defined) |
+| Field            | Type            | Description                                       |
+| ---------------- | --------------- | ------------------------------------------------- |
+| `sender_peer_id` | `u32`           | The peer ID of the message sender                 |
+| `message`        | `array\|object` | The message payload (binary array or JSON object) |
 
 **Example:**
 ```json
 { "MessageReceived": { "sender_peer_id": 17, "message": [104, 101, 108, 108, 111] } }
+{ "MessageReceived": { "sender_peer_id": 17, "message": { "type": "chat", "text": "Hello!" } } }
 ```
 
 ##### Error
@@ -697,7 +698,7 @@ To send a message, construct a JSON command and pass it to `odin_room_send_rpc()
 ```cpp
 nlohmann::json command = {
    {"SendMessage", {
-      {"message", nlohmann::json::binary_t(message_data.begin(), message_data.end())},
+      {"message", {104, 101, 108, 108, 111}},
       {"peer_ids", target_peer_ids} // optional
    }}
 };
