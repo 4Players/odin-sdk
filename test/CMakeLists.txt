@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 project(odin_minimal LANGUAGES C)
 
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Set minimum version policy to CMake 3.5")
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
@@ -24,7 +26,7 @@ include(FetchContent)
 FetchContent_Declare(
     miniaudio
     GIT_REPOSITORY https://github.com/mackron/miniaudio.git
-    GIT_TAG        4a5b74bef029b3592c54b6048650ee5f972c1a48 # version 0.11.21
+    GIT_TAG        9634bedb5b5a2ca38c1ee7108a9358a4e233f14d # version 0.11.25
     DOWNLOAD_DIR   ${MINIAUDIO_DIR}
     SOURCE_DIR     ${MINIAUDIO_DIR}
 )
