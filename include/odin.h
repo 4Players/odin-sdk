@@ -1,4 +1,5 @@
-/* Copyright (c) 4Players GmbH. All rights reserved. */
+/* Copyright (c) 4Players GmbH */
+/* SPDX-License-Identifier: MIT */
 
 #pragma once
 
@@ -10,7 +11,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.8.5"
+#define ODIN_VERSION "1.8.6"
 
 /**
  * Defines known error codes returned by ODIN functions.

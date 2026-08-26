@@ -2,6 +2,9 @@
  * 4Players ODIN Voice Client Example
  *
  * Usage: odin_client -r <room_id> -s <server_url> -k <access_key>
+ *
+ * Copyright (c) 4Players GmbH. Licensed under the MIT License; see LICENSE-MIT.
+ * SPDX-License-Identifier: MIT
  */
 
 #include <algorithm>

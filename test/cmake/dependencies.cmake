@@ -41,7 +41,7 @@ message(STATUS "Installing miniaudio")
 FetchContent_Declare(
     miniaudio
     GIT_REPOSITORY https://github.com/mackron/miniaudio.git
-    GIT_TAG        0.11.22
+    GIT_TAG        0.11.25
     EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(miniaudio)

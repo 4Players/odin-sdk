@@ -1,4 +1,5 @@
-/* Copyright (c) 4Players GmbH. All rights reserved. */
+/* Copyright (c) 4Players GmbH */
+/* SPDX-License-Identifier: MIT */
 
 #pragma once
 
@@ -17,9 +18,9 @@
  * Represents the encryption status of a remote peer in an ODIN room.
  */
 enum OdinCryptoPeerStatus
-#ifdef __cplusplus
+#if defined(__cplusplus) || __STDC_VERSION__ >= 202311L
   : int32_t
-#endif // __cplusplus
+#endif // defined(__cplusplus) || __STDC_VERSION__ >= 202311L
  {
     /**
      * Password does not match the local password, preventing decryption of their data.
@@ -39,7 +40,11 @@ enum OdinCryptoPeerStatus
     ODIN_CRYPTO_PEER_STATUS_ENCRYPTED = 2,
 };
 #ifndef __cplusplus
+#if __STDC_VERSION__ >= 202311L
+typedef enum OdinCryptoPeerStatus OdinCryptoPeerStatus;
+#else
 typedef int32_t OdinCryptoPeerStatus;
+#endif // __STDC_VERSION__ >= 202311L
 #endif // __cplusplus
 
 #ifdef __cplusplus
