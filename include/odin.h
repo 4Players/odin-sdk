@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define ODIN_VERSION "1.8.6"
+#define ODIN_VERSION "1.8.7"
 
 /**
  * Defines known error codes returned by ODIN functions.
