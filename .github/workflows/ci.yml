@@ -14,7 +14,7 @@ jobs:
       - name: Configure and Build
         run: |
           mkdir -p test/build && cd test/build
-          cmake .. -G "Visual Studio 17 2022" -A x64
+          cmake .. -A x64
           cmake --build . --config Release
       - name: Upload Job Artifacts
         uses: actions/upload-artifact@v4
@@ -22,6 +22,8 @@ jobs:
           name: odin-test-client-windows-x86_64
           path: |
             test/build/Release/odin_client.exe
+            test/build/Release/odin_sockets.exe
+            test/build/Release/odin_positions.exe
             test/build/Release/odin.dll
             test/build/Release/odin_crypto.dll
 
@@ -39,12 +41,16 @@ jobs:
           cmake .. -DCMAKE_BUILD_TYPE=Release
           make
           patchelf --set-rpath '$ORIGIN' ./odin_client
+          patchelf --set-rpath '$ORIGIN' ./odin_sockets
+          patchelf --set-rpath '$ORIGIN' ./odin_positions
       - name: Upload Job Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: odin-test-client-linux-x86_64
           path: |
             test/build/odin_client
+            test/build/odin_sockets
+            test/build/odin_positions
             test/build/libodin.so
             test/build/libodin_crypto.so
 
@@ -64,8 +70,10 @@ jobs:
       - name: Upload Job Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: odin-test-client-macos-x86_64
+          name: odin-test-client-macos-aarch64
           path: |
             test/build/odin_client
+            test/build/odin_sockets
+            test/build/odin_positions
             test/build/libodin.dylib
             test/build/libodin_crypto.dylib
