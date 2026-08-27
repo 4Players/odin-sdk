@@ -1,0 +1,286 @@
+4Players ODIN Voice SDK License
+Version 1.0
+
+Copyright (c) 4Players GmbH. All rights reserved.
+
+This license governs your use of the 4Players ODIN Voice SDK ("SDK") as
+distributed by 4Players GmbH. By downloading, copying, installing, linking
+against, or otherwise using any part of the SDK, you ("You" or "Your") agree
+to the terms of this license.
+
+1. COMPONENTS AND SCOPE
+
+1.1 "Binaries" means the pre-compiled libraries and other executable
+components distributed as part of the SDK, including the contents of
+the `bin/` directory.
+
+1.2 "Headers" means the public interface definition files distributed as
+part of the SDK, including the contents of the `include/` directory.
+
+1.3 "Samples" means the example, demonstration, and test client source code
+distributed as part of the SDK, including the contents of the `test/`
+directory.
+
+1.4 The Headers and Samples are additionally licensed under the MIT License
+as set out in `LICENSE-MIT`. The MIT License applies to those files
+independently of this license.
+
+1.5 This license applies only to the SDK components covered by Sections 1.1
+through 1.3. It does not grant any rights to the ODIN server software,
+the 4Players ODIN Cloud service, service credentials, trademarks, or
+other products or services of 4Players GmbH.
+
+2. LICENSE GRANT
+
+2.1 Subject to Your compliance with this license, 4Players GmbH grants You a
+worldwide, royalty-free, non-exclusive license to:
+
+(a) use the Binaries to develop, build, test, and operate applications,
+    plugins, engine integrations, language bindings, wrappers, and
+    similar software ("Your Application");
+
+(b) reproduce and distribute the unmodified Binaries as part of Your
+    Application, including in source or binary distributions and through
+    package registries, asset stores, application stores, and similar
+    distribution channels; and
+
+(c) use the SDK in connection with software that is distributed under
+    an open source or proprietary license, provided that the Binaries
+    remain subject to this license and are not represented as being
+    licensed under the license applicable to Your Application.
+
+2.2 This license does not grant You any right to modify, redistribute, or
+sublicense the Binaries except as expressly permitted by this license.
+
+2.3 You may create and distribute software that interfaces with, wraps,
+binds to, or otherwise uses the public API exposed by the Headers.
+Such software remains Your software and is not, solely by reason of
+using the SDK, subject to this license.
+
+3. REDISTRIBUTION CONDITIONS
+
+If You distribute Binaries to any third party, You must:
+
+(a) distribute the Binaries unmodified and complete for each platform
+    for which they are distributed;
+
+(b) retain all copyright, trademark, attribution, and license notices
+    included with the SDK;
+
+(c) include a copy of this license with the distribution (e.g. in a file
+    named `LICENSE-ODIN`), or otherwise provide the recipient with a
+    reasonably accessible copy of this license;
+
+(d) clearly identify the Binaries as separately licensed components
+    where Your Application is distributed under another license; and
+
+(e) comply with all applicable third-party license notices contained in
+    `THIRD-PARTY-NOTICES.md` and, where required by those licenses,
+    provide the corresponding notices and license texts to recipients.
+
+3.1 Your Application may be distributed under any license of Your choice,
+including a proprietary or open source license. Such license applies
+only to Your Application and does not replace or modify the terms of
+this license as they apply to the Binaries.
+
+3.2 You must not state or imply that the Binaries are licensed under the
+license of Your Application.
+
+3.3 A notice substantially similar to the following is sufficient:
+
+"This project is licensed under the applicable project license. It
+ includes the 4Players ODIN Voice SDK, which is licensed separately
+ under the 4Players ODIN Voice SDK License. See LICENSE-ODIN."
+
+4. RESTRICTIONS
+
+Except to the extent that applicable mandatory law expressly permits
+otherwise, You must not:
+
+(a) reverse engineer, decompile, or disassemble the Binaries, except
+    to the extent expressly permitted by applicable mandatory law;
+
+(b) modify, patch, translate, adapt, or create derivative works of the
+    Binaries;
+
+(c) remove, obscure, or alter copyright, trademark, attribution, or
+    license notices contained in the SDK;
+
+(d) use the SDK to develop or operate a service whose primary purpose
+    is to provide functionality that substitutes for the ODIN server
+    software or the 4Players ODIN Cloud service;
+
+(e) sublicense, rent, lease, sell, or otherwise distribute the SDK on
+    a standalone basis, except as expressly permitted under Section 3
+    as part of Your Application; or
+
+(f) use the SDK to circumvent licensing, authentication, access-control,
+    usage restrictions, or other technical measures protecting ODIN
+    services.
+
+4.1 Nothing in Section 4 prohibits the development or distribution of
+applications, plugins, language bindings, wrappers, adapters, or engine
+integrations that use the public API exposed by the Headers.
+
+4.2 For the avoidance of doubt, creating software that links against,
+calls, wraps, or otherwise interfaces with the Binaries does not,
+by itself, constitute modification or creation of a derivative work
+of the Binaries.
+
+5. ODIN SERVER SOFTWARE AND SERVICES
+
+5.1 The SDK is a client-side software development kit and does not itself
+grant any license to operate ODIN server software or any other server
+component.
+
+5.2 Use of the 4Players ODIN Cloud service requires an appropriate account
+and is subject to the terms, policies, usage limits, and pricing
+applicable to that service.
+
+5.3 Use or operation of ODIN server software is not licensed under this
+agreement and may require a separate license or commercial agreement
+with 4Players GmbH.
+
+5.4 This license does not grant You any right to access, operate, copy,
+modify, host, or redistribute ODIN server software, service credentials,
+or other server-side components.
+
+5.5 Nothing in this license guarantees the availability, capacity,
+compatibility, or continued operation of any 4Players service.
+
+6. THIRD-PARTY COMPONENTS
+
+6.1 The SDK may include components that are subject to licenses from third
+parties.
+
+6.2 Such components remain subject to their respective licenses. Nothing in
+this license is intended to restrict rights granted to You under a
+third-party license.
+
+6.3 Applicable third-party licenses and notices are provided in
+`THIRD-PARTY-NOTICES.md`.
+
+7. FEEDBACK
+
+If You voluntarily provide 4Players GmbH with suggestions, comments,
+bug reports, or other feedback concerning the SDK ("Feedback"), You grant
+4Players GmbH a worldwide, perpetual, irrevocable, royalty-free,
+non-exclusive license to use, reproduce, modify, publish, distribute,
+sublicense, and otherwise exploit such Feedback for any purpose without
+compensation or attribution to You.
+
+8. TERM AND TERMINATION
+
+8.1 This license remains in effect for as long as You comply with its terms.
+
+8.2 This license terminates automatically if You materially breach its terms
+and fail to cure the breach within thirty (30) days after receiving
+written notice of the breach.
+
+8.3 Upon termination, You must cease exercising the rights granted under
+this license and must cease further distribution of the Binaries,
+except as expressly permitted by applicable mandatory law.
+
+8.4 Termination does not require recipients who lawfully obtained Your
+Application before termination to cease using that Application, provided
+that their use of the Binaries remains otherwise permitted under this
+license and applicable law.
+
+8.5 Sections 4, 5, 6, 7, 8.4, 9, and 10 survive termination to the extent
+necessary to give them effect.
+
+9. NO WARRANTY
+
+THE SDK IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING, WITHOUT LIMITATION, WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+NON-INFRINGEMENT.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, 4PLAYERS GMBH DOES NOT
+WARRANT THAT THE SDK WILL BE ERROR-FREE, UNINTERRUPTED, SECURE, OR COMPATIBLE
+WITH ANY PARTICULAR PLATFORM, OPERATING SYSTEM, ENGINE, OR APPLICATION.
+
+10. LIMITATION OF LIABILITY
+
+10.1 4Players GmbH shall be liable without limitation for damages arising
+from willful misconduct or gross negligence, from injury to life, body, or
+health, and under the German Product Liability Act (Produkthaftungsgesetz).
+
+10.2 In cases of slight negligence, 4Players GmbH shall be liable only for
+breaches of essential contractual obligations (Kardinalpflichten), meaning
+obligations whose fulfillment is a prerequisite for the proper performance
+of this license and on whose fulfillment You may regularly rely. In such
+cases, liability is limited to the damage that is foreseeable and typical
+for licenses of this kind.
+
+10.3 Subject to Sections 10.1 and 10.2, any further liability of
+4Players GmbH arising from or in connection with this license or the SDK
+is excluded, regardless of the legal theory, including liability for
+indirect, incidental, special, consequential, exemplary, or punitive
+damages and for loss of profits, revenue, data, business, or goodwill.
+
+10.4 Nothing in this license excludes or limits liability that cannot
+lawfully be excluded or limited under applicable law.
+
+11. TRADEMARKS
+
+This license does not grant You any right to use the names, logos,
+trademarks, service marks, or other branding of 4Players GmbH or ODIN,
+except as reasonably necessary to identify the SDK and as permitted by
+applicable trademark law.
+
+You must not imply that Your Application is developed, endorsed,
+certified, or sponsored by 4Players GmbH unless You have received separate
+written permission.
+
+12. EXPORT AND APPLICABLE LAW
+
+You are responsible for complying with all applicable laws and regulations
+relating to the use, export, re-export, distribution, and import of the SDK.
+
+13. GENERAL
+
+13.1 This license constitutes the entire agreement between You and
+4Players GmbH concerning the licensing of the SDK and supersedes any
+prior agreement concerning the same subject matter, except for
+separate written agreements expressly applicable to the SDK.
+
+13.2 No amendment to this license is binding on 4Players GmbH unless made
+in writing by an authorized representative of 4Players GmbH.
+
+13.3 If any provision of this license is held to be invalid or
+unenforceable, the remaining provisions shall remain in full force
+and effect. The invalid or unenforceable provision shall be replaced,
+to the extent permitted by law, by a valid provision that most closely
+reflects the original intent.
+
+13.4 The failure of 4Players GmbH to enforce any provision of this license
+shall not constitute a waiver of that provision or of the right to
+enforce it later.
+
+13.5 This license is governed by the laws of the Federal Republic of
+Germany, excluding its conflict-of-law rules and the United Nations
+Convention on Contracts for the International Sale of Goods (CISG).
+
+13.6 If You are a merchant (Kaufmann) or a legal entity under public law,
+or a special fund under public law, the exclusive place of jurisdiction
+for disputes arising from or in connection with this license shall be
+Hamburg, Germany, to the extent permitted by applicable law.
+
+13.7 Nothing in this license limits any rights that cannot be excluded
+under applicable mandatory law.
+
+14. COPYRIGHT AND CONTACT
+
+4Players GmbH
+Paul-Stritter-Weg 2
+22297 Hamburg
+Germany
+
+Copyright (c) 4Players GmbH. All rights reserved.
+
+Licensing questions:
+odin@4players.io
+
+Official ODIN website:
+https://odin.4players.io

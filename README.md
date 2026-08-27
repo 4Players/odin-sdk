@@ -28,6 +28,7 @@ You can choose between a managed cloud and a self-hosted solution. Let [4Players
       - [Updating Positions](#updating-positions)
       - [Background Updates](#background-updates)
    - [Messages](#messages)
+   - [Data Exchange with Sockets](#data-exchange-with-sockets)
    - [End-to-End Encryption](#end-to-end-encryption-cipher)
 - [Testing](#testing)
 - [Resources](#resources)
@@ -392,11 +393,11 @@ for (;;) {
 }
 ```
 
-**Note:** You can optionally assign 3D positions per channel mask on the encoder to enable positional audio.
+**Note:** You can optionally assign 3D positions per channel mask on the encoder to enable positional audio. Also, passing `0` as the peer ID creates an encoder that isn't bound to a specific session; outgoing datagrams are automatically stamped with your actual peer ID on send, so you can create the encoder up front and reuse it across joins and reconnects.
 
 #### Decoders (Incoming Audio)
 
-A decoder processes datagrams received from remote peers. Typically, you’ll create one decoder per peer, which you update in your `on_datagram` callback.
+A decoder processes datagrams received from remote peers. Typically, you’ll create one decoder per peer, which you update in your `on_datagram` callback. Decoders aren't tied to a specific peer or session though, so instead of destroying and recreating them, you can also reuse existing instances when peers come and go.
 
 ```cpp
 OdinDecoder* decoder;
@@ -524,6 +525,23 @@ You can also push loopback (reverse) audio into the pipeline to support echo can
 ```cpp
 odin_pipeline_update_apm_playback(pipeline, apm_id, reverse_samples, sample_count, delay_ms);
 ```
+
+#### VI (Voice Isolation) Effects
+
+The VI module uses a deep-learning noise suppression model to separate speech from background sound, going far beyond what classic noise suppression can do. It isolates the voice in the capture signal and attenuates everything else like keyboard noise, music, street sounds or other people talking in the background.
+
+```cpp
+uint32_t vi_id;
+odin_pipeline_insert_vi_effect(pipeline, index, &vi_id);
+
+OdinViConfig config = {
+    .enabled = true,
+    .attenuation_limit_db = 100 // values >= 100 remove background sound entirely
+};
+odin_pipeline_set_vi_config(pipeline, vi_id, &config);
+```
+
+The effect starts out disabled and needs an explicit configuration to start filtering. Note that inserting the first instance loads the underlying inference model (additional instances share the loaded model), and that the effect processes a mono downmix of the signal, so stereo content is collapsed to dual mono. For the best results, place the effect after the APM (whose echo canceller needs the unmodified capture signal) and before the VAD (which gates more reliably on the isolated voice).
 
 #### Custom Effects
 
@@ -708,6 +726,42 @@ odin_room_send_rpc(room, command.dump().data());
 
 Messages are received through the `on_rpc` callback, where they arrive as standard JSON objects containing the binary payload. Unlike voice data, messages are **not affected by proximity or channel masks**. Instead, they are always delivered to the intended recipients, regardless of their position or audio configuration.
 
+### Data Exchange with Sockets
+
+In addition to messages, ODIN provides **sockets** as bidirectional communication channels for exchanging arbitrary data with a specific peer (or all peers) in a room. While messages always travel reliably over the signaling channel, sockets let you choose the delivery guarantees per channel, making them ideal for things like file transfers, custom state replication or high-frequency gameplay data:
+
+- `ODIN_SOCKET_KIND_RELIABLE` sockets deliver messages **guaranteed and in order** over a dedicated stream, with messages up to 10 MiB in size.
+- `ODIN_SOCKET_KIND_UNRELIABLE` sockets deliver messages with **minimal latency** as individual datagrams, which may be lost or arrive out of order and must fit into a single datagram.
+
+To open a socket, call `odin_socket_create()` with the desired kind and the ID of the remote peer, where `0` addresses all peers in the room. The user-defined `label` and `priority` values are transmitted to the remote peer and can be used to identify the socket and prioritize its traffic:
+
+```cpp
+OdinSocket *socket;
+odin_socket_create(room, ODIN_SOCKET_KIND_RELIABLE, target_peer_id, 1, 0, &socket);
+odin_socket_send(socket, (const uint8_t *)"hello", 5);
+```
+
+On the remote side, the socket shows up as inbound and its messages are delivered through the `on_socket` callback of the room events. The callback receives the socket handle, which can be used to reply or to query the socket details using `odin_socket_info()`:
+
+```cpp
+void on_socket(OdinSocket *socket, const uint8_t *message, uint32_t message_length, void *user_data) {
+   OdinSocketInfo info;
+   odin_socket_info(socket, &info);
+
+   printf("received %d bytes on socket with label %d from peer %d\n", message_length, info.label, info.remote_peer_id);
+
+   if (info.is_inbound) {
+      odin_socket_send(socket, message, message_length); // echo the message back
+   }
+}
+```
+
+Calling `odin_socket_reset()` performs a **half-close**: it shuts down the sending side of the socket, transmitting any messages still queued, while the socket continues to receive messages from the remote peer. This enables simple request/response patterns where you send a request, close your side and keep listening for replies.
+
+Please note: Sockets are bound to the current room session and **do not survive reconnects**. Once the room was rejoined, sending fails and a new socket needs to be created - just like encoders and decoders.
+
+For a complete working example, check out the `odin_sockets` sample in the `test` sub-directory of this repository.
+
 ### End-to-End Encryption (Cipher)
 
 ODIN supports end-to-end encryption (E2EE) through the use of a pluggable `OdinCipher` module. This enables you to secure all datagrams, messages and peer user data with a shared room password - without relying on the server as a trust anchor.
@@ -724,7 +778,7 @@ The encryption system uses a master key derived from the password, then derives 
 
 ## Testing
 
-In addition to the latest binaries and C header files, this repository also contains a simple test client in the `test` sub-directory. Please note, that the configure process will try to download, verify and extract dependencies (e.g. [miniaudio](https://miniaud.io)), which are specified in the `CMakeLists.txt` file. [miniaudio](https://miniaud.io) is used to provide basic audio capture and playback functionality in the test client.
+In addition to the latest binaries and C header files, this repository also contains a versatile test client (`odin_client`) along with a set of smaller samples (e.g. `odin_sockets` and `odin_positions`) in the `test` sub-directory. Please note, that the configure process will try to download, verify and extract dependencies (e.g. [miniaudio](https://miniaud.io)), which are specified in the `CMakeLists.txt` file. [miniaudio](https://miniaud.io) is used to provide basic audio capture and playback functionality in the test client.
 
 ### Configuring and Building
 

@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.28)
 
 project(
-    odin_client
+    odin_samples
     VERSION 2.0.0
-    DESCRIPTION "Versatile CLI test client for ODIN Voice written in C/C++"
+    DESCRIPTION "Sample clients for ODIN Voice written in C/C++"
     HOMEPAGE_URL "https://www.4players.io"
     LANGUAGES C CXX
 )
@@ -19,12 +19,6 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
-
-add_executable(${PROJECT_NAME})
-
-if(WIN32)
-    target_compile_options(${PROJECT_NAME} PRIVATE /utf-8)
-endif()
 
 include("./cmake/dependencies.cmake")
 
@@ -49,23 +43,40 @@ else()
     message(FATAL_ERROR "Unknown platform; only Windows, macOS and Linux are supported")
 endif()
 
-target_sources(${PROJECT_NAME} PRIVATE src/main.cpp)
-target_compile_definitions(${PROJECT_NAME} PRIVATE PROJECT_NAME="${PROJECT_NAME}" PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION}")
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/../include)
-target_link_directories(${PROJECT_NAME} PRIVATE ${ODIN_SDK_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE odin odin_crypto)
-
-if(APPLE)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_INSTALL_NAME_TOOL} -rpath ${ODIN_SDK_DIR} "@executable_path" $<TARGET_FILE:${PROJECT_NAME}>)
-endif()
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${ODIN_SDK_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}odin${CMAKE_SHARED_LIBRARY_SUFFIX}
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>
+add_library(odin SHARED IMPORTED)
+set_target_properties(odin PROPERTIES
+    IMPORTED_LOCATION ${ODIN_SDK_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}odin${CMAKE_SHARED_LIBRARY_SUFFIX}
+    IMPORTED_IMPLIB ${ODIN_SDK_DIR}/odin${CMAKE_STATIC_LIBRARY_SUFFIX}
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/../include
 )
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${ODIN_SDK_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}odin_crypto${CMAKE_SHARED_LIBRARY_SUFFIX}
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>
+add_library(odin_crypto SHARED IMPORTED)
+set_target_properties(odin_crypto PROPERTIES
+    IMPORTED_LOCATION ${ODIN_SDK_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}odin_crypto${CMAKE_SHARED_LIBRARY_SUFFIX}
+    IMPORTED_IMPLIB ${ODIN_SDK_DIR}/odin_crypto${CMAKE_STATIC_LIBRARY_SUFFIX}
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/../include
 )
+
+# Helper to declare a sample executable; additional libraries to link (e.g.
+# odin_crypto) can be passed after the source file
+function(add_sample name source)
+    add_executable(${name} ${source})
+    if(WIN32)
+        target_compile_options(${name} PRIVATE /utf-8)
+    endif()
+    target_compile_definitions(${name} PRIVATE PROJECT_NAME="${name}" PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION}")
+    target_link_libraries(${name} PRIVATE sample_deps odin ${ARGN})
+    if(APPLE)
+        add_custom_command(TARGET ${name} POST_BUILD COMMAND ${CMAKE_INSTALL_NAME_TOOL} -rpath ${ODIN_SDK_DIR} "@executable_path" $<TARGET_FILE:${name}>)
+    endif()
+    foreach(lib odin ${ARGN})
+        add_custom_command(TARGET ${name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:${lib}>
+                $<TARGET_FILE_DIR:${name}>
+        )
+    endforeach()
+endfunction()
+
+add_sample(odin_client src/main.cpp odin_crypto)
+add_sample(odin_sockets src/sockets.cpp)
+add_sample(odin_positions src/positions.cpp)

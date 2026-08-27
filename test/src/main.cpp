@@ -1,16 +1,22 @@
-
 /*
  * 4Players ODIN Voice Client Example
  *
  * Usage: odin_client -r <room_id> -s <server_url> -k <access_key>
+ *
+ * Copyright (c) 4Players GmbH. Licensed under the MIT License; see LICENSE-MIT.
+ * SPDX-License-Identifier: MIT
  */
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
-#include <fstream>
 #include <iostream>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <cxxopts.hpp>
@@ -24,45 +30,49 @@
 #include <odin_crypto.h>
 
 #include "api.hpp"
-
-#define ODIN_ACCESS_KEY_FILE "odin_access_key.txt"
-#define ODIN_DEFAULT_GW_ADDR "gateway.odin.4players.io"
-#define ODIN_DEFAULT_ROOM_ID "default"
-#define ODIN_DEFAULT_USER_ID "My User ID"
-
-template <class T> using OpaquePtr = std::unique_ptr<T, void (*)(T *)>;
+#include "utils.hpp"
 
 /**
- * Custom macros that support formatting with variadic arguments.
+ * Atomic shared-pointer storage across C++20 standard-library implementations.
+ * Apple libc++ currently lacks std::atomic<std::shared_ptr<T>>, so only this
+ * compatibility wrapper needs to know about the legacy atomic accessors.
  */
-#define LOG_DEBUG(...) spdlog::debug(__VA_ARGS__)
-#define LOG_INFO(...) spdlog::info(__VA_ARGS__)
-#define LOG_WARNING(...) spdlog::warn(__VA_ARGS__)
-#define LOG_ERROR(...) spdlog::error(__VA_ARGS__)
-#define LOG_CRITICAL(...)                                                      \
-  do {                                                                         \
-    spdlog::critical(__VA_ARGS__);                                             \
-    std::exit(EXIT_FAILURE);                                                   \
-  } while (0)
+template <typename T> class AtomicSharedPtr {
+public:
+  explicit AtomicSharedPtr(std::shared_ptr<T> value)
+      : value_(std::move(value)) {}
 
-/**
- * Custom macro to execute the given expression (which should be a valid API
- * call from the ODIN Voice SDK and checks its result. It is intended for
- * scenarios where a failure is considered critical.
- */
-#define CHECK(expr)                                                            \
-  {                                                                            \
-    OdinError error = expr;                                                    \
-    if (error != ODIN_ERROR_SUCCESS) {                                         \
-      LOG_CRITICAL(#expr " failed: {}", odin_error_get_last_error());          \
-    }                                                                          \
+  std::shared_ptr<T> load(std::memory_order order) const {
+#if defined(__cpp_lib_atomic_shared_ptr) &&                                    \
+    __cpp_lib_atomic_shared_ptr >= 201711L
+    return this->value_.load(order);
+#else
+    return std::atomic_load_explicit(&this->value_, order);
+#endif
   }
+
+  void store(std::shared_ptr<T> value, std::memory_order order) {
+#if defined(__cpp_lib_atomic_shared_ptr) &&                                    \
+    __cpp_lib_atomic_shared_ptr >= 201711L
+    this->value_.store(std::move(value), order);
+#else
+    std::atomic_store_explicit(&this->value_, std::move(value), order);
+#endif
+  }
+
+private:
+#if defined(__cpp_lib_atomic_shared_ptr) &&                                    \
+    __cpp_lib_atomic_shared_ptr >= 201711L
+  std::atomic<std::shared_ptr<T>> value_;
+#else
+  std::shared_ptr<T> value_;
+#endif
+};
 
 /**
  * Global namespace for application-wide variables.
  */
 namespace global {
-std::optional<cxxopts::ParseResult> arguments;
 std::vector<ma_device_info> playback_devices;
 std::vector<ma_device_info> capture_devices;
 OdinVadConfig vad_effect_config = {
@@ -79,6 +89,10 @@ OdinApmConfig apm_effect_config = {
     .transient_suppressor = false,
     .noise_suppression_level = ODIN_NOISE_SUPPRESSION_LEVEL_MODERATE,
     .gain_controller_version = ODIN_GAIN_CONTROLLER_VERSION_V2};
+OdinViConfig vi_effect_config = {
+    .enabled = true,
+    .attenuation_limit_db = 100.0f,
+};
 } // namespace global
 
 /**
@@ -119,7 +133,9 @@ void init_arguments(int argc, char *argv[]) {
       // --disable-vad
       ("disable-vad", "disable built-in voice activity detection effects")
       // --disable-apm
-      ("disable-apm", "disable built-in audio processing module effects");
+      ("disable-apm", "disable built-in audio processing module effects")
+      // --enable-vi
+      ("enable-vi", "enable built-in voice isolation effects");
   options.add_options("Audio Device")
       // --audio-devices
       ("a,audio-devices", "show available audio devices and exit")
@@ -128,7 +144,7 @@ void init_arguments(int argc, char *argv[]) {
        cxxopts::value<int>()->default_value("0"))
       // --output-sample-rate <number>
       ("output-sample-rate", "playback sample rate in Hz",
-       cxxopts::value<int>()->default_value("48000"))
+       cxxopts::value<uint32_t>()->default_value("48000"))
       // --output-channels <number>
       ("output-channels", "playback channel count (1-2)",
        cxxopts::value<int>()->default_value("2"))
@@ -137,17 +153,12 @@ void init_arguments(int argc, char *argv[]) {
        cxxopts::value<int>()->default_value("0"))
       // --input-sample-rate <number>
       ("input-sample-rate", "capture sample rate in Hz",
-       cxxopts::value<int>()->default_value("48000"))
+       cxxopts::value<uint32_t>()->default_value("48000"))
       // --input-channels <number>
       ("input-channels", "capture channel count (1-2)",
        cxxopts::value<int>()->default_value("1"));
 
-  try {
-    global::arguments.emplace(options.parse(argc, argv));
-  } catch (cxxopts::exceptions::exception e) {
-    std::cerr << "Error: " << e.what() << std::endl;
-    exit(EXIT_FAILURE);
-  }
+  parse_arguments(options, argc, argv);
 
   if (global::arguments->count("audio-devices")) {
     std::cout << "Playback Devices:" << std::endl;
@@ -168,33 +179,6 @@ void init_arguments(int argc, char *argv[]) {
 
     exit(EXIT_SUCCESS);
   }
-
-  if (global::arguments->count("version")) {
-    std::cout << PROJECT_NAME << " (SDK " << ODIN_VERSION ")" << std::endl;
-    exit(EXIT_SUCCESS);
-  }
-
-  if (global::arguments->count("help")) {
-    std::cout << options.help() << std::endl;
-    exit(EXIT_SUCCESS);
-  }
-}
-
-/**
- * Queries the globally stored command-line arguments to determine if the
- * specified option is present.
- */
-bool has_argument(std::string name) {
-  return !!global::arguments->count(name.data());
-}
-
-/**
- * Template function to fetch the value associated with the given argument
- * name from the globally parsed command-line options and convert it to the
- * specified type `T`.
- */
-template <typename T> T get_argument(std::string name) {
-  return (*global::arguments)[name].as<T>();
 }
 
 struct CustomEffectContext {
@@ -205,8 +189,8 @@ struct CustomEffectContext {
 /**
  * Custom pipeline effect callback to track peer talk status.
  */
-static void custom_effect_talk_status(float *samples, uint32_t samples_count,
-                                      bool *is_silent, const void *user_data) {
+static void custom_effect_talk_status(float *, uint32_t, bool *is_silent,
+                                      const void *user_data) {
   auto ctx = static_cast<CustomEffectContext *>(const_cast<void *>(user_data));
   if (ctx->is_silent != *is_silent) {
     LOG_INFO("peer {} {} talking", ctx->peer_id,
@@ -227,18 +211,38 @@ struct Decoder {
   CustomEffectContext ctx;
 };
 
+struct MediaState {
+  std::shared_ptr<Encoder> encoder;
+  std::unordered_map<api::PeerId, std::shared_ptr<Decoder>> decoders;
+};
+
 /**
  * Global application state.
  */
 struct State {
-  OpaquePtr<OdinRoom> room;
-  OdinCipher *cipher;
+  std::atomic<OdinRoom *> room = nullptr;
+  OdinCipher *cipher = nullptr;
+  api::PeerId own_peer_id = 0;
 
-  ma_device playback_device;
-  ma_device capture_device;
+  ma_device playback_device = {};
+  ma_device capture_device = {};
+  bool playback_device_initialized = false;
+  bool capture_device_initialized = false;
 
-  std::optional<Encoder> encoder;
-  std::unordered_map<api::PeerId, Decoder> decoders;
+  uint32_t playback_sample_rate = 48000;
+  bool playback_stereo = true;
+  uint32_t capture_sample_rate = 48000;
+  bool capture_stereo = false;
+
+  AtomicSharedPtr<const MediaState> media{std::make_shared<const MediaState>()};
+
+  std::shared_ptr<const MediaState> load_media() const {
+    return this->media.load(std::memory_order_acquire);
+  }
+
+  void store_media(std::shared_ptr<const MediaState> next) {
+    this->media.store(std::move(next), std::memory_order_release);
+  }
 
   State();
 
@@ -255,10 +259,10 @@ struct State {
   void send_rpc(const api::client::Command);
 
   void start_audio_devices(int playback_device_idx,
-                           int playback_device_sample_rate_hz,
+                           uint32_t playback_device_sample_rate_hz,
                            int playback_device_channel_count,
                            int capture_device_idx,
-                           int capture_device_sample_rate_hz,
+                           uint32_t capture_device_sample_rate_hz,
                            int capture_device_channels_count);
   void stop_audio_devices();
 };
@@ -271,25 +275,28 @@ struct State {
 void handle_audio_data(ma_device *device, void *output, const void *input,
                        ma_uint32 frame_count) {
   auto state = reinterpret_cast<State *>(device->pUserData);
+  const auto media = state->load_media();
+
   if (device->type == ma_device_type_capture) {
     auto input_count = frame_count * device->capture.channels;
+    const auto room = state->room.load(std::memory_order_acquire);
 
-    if (state->encoder.has_value()) {
-      odin_encoder_push(state->encoder->ptr.get(),
+    if (media->encoder && room) {
+      odin_encoder_push(media->encoder->ptr.get(),
                         reinterpret_cast<const float *>(input), input_count);
       for (;;) {
         uint8_t datagram[2048];
         uint32_t datagram_length = sizeof(datagram);
-        switch (odin_encoder_pop(state->encoder->ptr.get(), datagram,
+        switch (odin_encoder_pop(media->encoder->ptr.get(), datagram,
                                  &datagram_length)) {
         case ODIN_ERROR_SUCCESS:
-          CHECK(odin_room_send_datagram(state->room.get(), datagram,
-                                        datagram_length));
+          CHECK(odin_room_send_datagram(room, datagram, datagram_length));
           break;
         case ODIN_ERROR_NO_DATA:
           return;
         default:
           LOG_ERROR("failed to encode audio datagram to send");
+          return;
         };
       }
     }
@@ -297,20 +304,21 @@ void handle_audio_data(ma_device *device, void *output, const void *input,
     auto output_count = frame_count * device->playback.channels;
     auto *output_begin = reinterpret_cast<float *>(output);
     auto output_end = output_begin + output_count;
-    std::vector<float> samples(output_count);
+    thread_local std::vector<float> samples;
+    samples.resize(output_count);
 
-    for (const auto &[media_id, decoder] : state->decoders) {
-      odin_decoder_pop(decoder.ptr.get(), samples.data(), output_count,
+    for (const auto &[media_id, decoder] : media->decoders) {
+      odin_decoder_pop(decoder->ptr.get(), samples.data(), output_count,
                        nullptr);
       std::transform(output_begin, output_end, samples.data(), output_begin,
                      std::plus<>());
     }
 
-    if (state->encoder.has_value() &&
+    if (media->encoder && media->encoder->apm_effect_id != 0 &&
         global::apm_effect_config.echo_canceller) {
       odin_pipeline_update_apm_playback(
-          odin_encoder_get_pipeline(state->encoder->ptr.get()),
-          state->encoder->apm_effect_id, output_begin, output_count, 10);
+          odin_encoder_get_pipeline(media->encoder->ptr.get()),
+          media->encoder->apm_effect_id, output_begin, output_count, 10);
     }
   }
 }
@@ -318,7 +326,7 @@ void handle_audio_data(ma_device *device, void *output, const void *input,
 /**
  * Constructs a local state object and enumerates available audio devices.
  */
-State::State() : room(nullptr, &odin_room_free), cipher(nullptr) {
+State::State() {
   ma_context context;
   ma_device_info *playback_devices = nullptr;
   ma_uint32 playback_devices_count = 0;
@@ -345,8 +353,7 @@ void State::on_room_status_changed(const std::string &status) {
   if (status == "joined")
     return;
 
-  this->encoder.reset();
-  this->decoders.clear();
+  this->store_media(std::make_shared<const MediaState>());
 }
 
 /**
@@ -354,12 +361,12 @@ void State::on_room_status_changed(const std::string &status) {
  * audio.
  */
 void State::on_room_joined(const std::string &room_id,
-                           const std::string &customer,
-                           api::PeerId own_peer_id) {
+                           const std::string &customer, api::PeerId peer_id) {
   LOG_INFO("room '{}' owned by '{}' joined successfully as peer {}", room_id,
-           customer, own_peer_id);
+           customer, peer_id);
 
-  this->configure_encoder(own_peer_id);
+  this->own_peer_id = peer_id;
+  this->configure_encoder(peer_id);
 }
 
 /**
@@ -395,7 +402,9 @@ void State::on_peer_joined(const api::PeerId peer_id,
 void State::on_peer_left(const api::PeerId peer_id) {
   LOG_INFO("peer {} left", peer_id);
 
-  this->decoders.erase(peer_id);
+  auto next = std::make_shared<MediaState>(*this->load_media());
+  next->decoders.erase(peer_id);
+  this->store_media(std::move(next));
 }
 
 /**
@@ -406,21 +415,29 @@ void State::on_peer_left(const api::PeerId peer_id) {
  */
 void State::configure_encoder(const api::PeerId peer_id) {
   OdinEncoder *encoder;
-  CHECK(odin_encoder_create(peer_id, this->capture_device.sampleRate,
-                            this->capture_device.capture.channels == 2,
-                            &encoder));
+  CHECK(odin_encoder_create(peer_id, this->capture_sample_rate,
+                            this->capture_stereo, &encoder));
   const OdinPipeline *pipeline = odin_encoder_get_pipeline(encoder);
 
   uint32_t apm_effect_id;
   if (!has_argument("disable-apm")) {
     CHECK(odin_pipeline_insert_apm_effect(
         pipeline, odin_pipeline_get_effect_count(pipeline),
-        this->playback_device.sampleRate,
-        this->playback_device.playback.channels == 2, &apm_effect_id));
+        this->playback_sample_rate, this->playback_stereo, &apm_effect_id));
     CHECK(odin_pipeline_set_apm_config(pipeline, apm_effect_id,
                                        &global::apm_effect_config));
   } else {
     apm_effect_id = 0;
+  }
+
+  uint32_t vi_effect_id;
+  if (has_argument("enable-vi")) {
+    CHECK(odin_pipeline_insert_vi_effect(
+        pipeline, odin_pipeline_get_effect_count(pipeline), &vi_effect_id));
+    CHECK(odin_pipeline_set_vi_config(pipeline, vi_effect_id,
+                                       &global::vi_effect_config));
+  } else {
+    vi_effect_id = 0;
   }
 
   uint32_t vad_effect_id;
@@ -433,16 +450,20 @@ void State::configure_encoder(const api::PeerId peer_id) {
     vad_effect_id = 0;
   }
 
-  this->encoder.emplace(
+  auto encoder_state = std::make_shared<Encoder>(
       Encoder{OpaquePtr<OdinEncoder>(encoder, &odin_encoder_free),
               vad_effect_id,
               apm_effect_id,
               {peer_id, true}});
 
-  odin_pipeline_insert_custom_effect(
+  CHECK(odin_pipeline_insert_custom_effect(
       pipeline, odin_pipeline_get_effect_count(pipeline),
-      custom_effect_talk_status, static_cast<const void *>(&this->encoder->ctx),
-      nullptr);
+      custom_effect_talk_status, static_cast<const void *>(&encoder_state->ctx),
+      nullptr));
+
+  auto next = std::make_shared<MediaState>(*this->load_media());
+  next->encoder = std::move(encoder_state);
+  this->store_media(std::move(next));
 }
 
 /**
@@ -452,32 +473,37 @@ void State::configure_encoder(const api::PeerId peer_id) {
  */
 void State::configure_decoder(const api::PeerId peer_id) {
   OdinDecoder *decoder;
-  CHECK(odin_decoder_create(this->playback_device.sampleRate,
-                            this->playback_device.playback.channels == 2,
+  CHECK(odin_decoder_create(this->playback_sample_rate, this->playback_stereo,
                             &decoder));
   const OdinPipeline *pipeline = odin_decoder_get_pipeline(decoder);
 
-  auto [d, inserted] = this->decoders.insert(
-      {peer_id, Decoder{OpaquePtr<OdinDecoder>(decoder, &odin_decoder_free),
-                        {peer_id, true}}});
-  assert(inserted);
+  auto decoder_state = std::make_shared<Decoder>(Decoder{
+      OpaquePtr<OdinDecoder>(decoder, &odin_decoder_free), {peer_id, true}});
 
-  odin_pipeline_insert_custom_effect(pipeline, 0, custom_effect_talk_status,
-                                     static_cast<const void *>(&d->second.ctx),
-                                     nullptr);
+  CHECK(odin_pipeline_insert_custom_effect(
+      pipeline, 0, custom_effect_talk_status,
+      static_cast<const void *>(&decoder_state->ctx), nullptr));
+
+  auto next = std::make_shared<MediaState>(*this->load_media());
+  next->decoders.insert_or_assign(peer_id, std::move(decoder_state));
+  this->store_media(std::move(next));
 }
 
 /**
- * Sends a remote procedure call (RPC) command to the server. It serializes
- * the given command object to JSON, converts it to MessagePack format and
- * transmits it.
+ * Sends a remote procedure call (RPC) command to the server by serializing the
+ * given command object to JSON and transmitting it.
  */
 void State::send_rpc(api::client::Command cmd) {
   nlohmann::json rpc = cmd;
   LOG_DEBUG("sending rpc: {}", rpc.dump());
 
   try {
-    CHECK(odin_room_send_rpc(this->room.get(), rpc.dump().data()));
+    const auto room_handle = this->room.load(std::memory_order_acquire);
+    if (!room_handle) {
+      LOG_WARNING("unable to send rpc; room is not connected");
+      return;
+    }
+    CHECK(odin_room_send_rpc(room_handle, rpc.dump().data()));
   } catch (const std::exception &e) {
     LOG_WARNING("failed to encode outgoing rpc; {}", e.what());
   }
@@ -489,56 +515,75 @@ void State::send_rpc(api::client::Command cmd) {
  * the global device lists to look up the desired device IDs.
  */
 void State::start_audio_devices(int playback_device_idx,
-                                int playback_device_sample_rate_hz,
+                                uint32_t playback_device_sample_rate_hz,
                                 int playback_device_channel_count,
                                 int capture_device_idx,
-                                int capture_device_sample_rate_hz,
+                                uint32_t capture_device_sample_rate_hz,
                                 int capture_device_channels_count) {
+  this->playback_sample_rate = playback_device_sample_rate_hz;
+  this->playback_stereo = std::clamp(playback_device_channel_count, 1, 2) == 2;
+  this->capture_sample_rate = capture_device_sample_rate_hz;
+  this->capture_stereo = std::clamp(capture_device_channels_count, 1, 2) == 2;
+
   if (global::playback_devices.size()) {
     auto config = ma_device_config_init(ma_device_type_playback);
     if (playback_device_idx > 0 &&
-        playback_device_idx < global::playback_devices.size()) {
+        static_cast<std::size_t>(playback_device_idx) <=
+            global::playback_devices.size()) {
       config.playback.pDeviceID =
-          &global::playback_devices[playback_device_idx - 1].id;
+          &global::playback_devices[static_cast<std::size_t>(
+                                        playback_device_idx - 1)]
+               .id;
     }
     config.playback.format = ma_format_f32;
-    config.playback.channels = std::clamp(playback_device_channel_count, 1, 2);
-    config.sampleRate = playback_device_sample_rate_hz;
+    config.playback.channels = this->playback_stereo ? 2 : 1;
+    config.sampleRate = this->playback_sample_rate;
     config.dataCallback = handle_audio_data;
     config.pUserData = this;
 
     auto result = ma_device_init(nullptr, &config, &this->playback_device);
-    if ((result = ma_device_start(&this->playback_device)) != MA_SUCCESS) {
+    if (result == MA_SUCCESS &&
+        (result = ma_device_start(&this->playback_device)) != MA_SUCCESS) {
+      ma_device_uninit(&this->playback_device);
+    }
+    if (result != MA_SUCCESS) {
       LOG_ERROR("failed to open audio playback device; {}",
                 ma_result_description(result));
-      ma_device_uninit(&this->playback_device);
     } else {
+      this->playback_device_initialized = true;
       LOG_INFO("using audio playback device: {}",
                this->playback_device.playback.name);
     }
   } else {
-    LOG_WARNING("no audio capture device available");
+    LOG_WARNING("no audio playback device available");
   }
 
   if (global::capture_devices.size()) {
     auto config = ma_device_config_init(ma_device_type_capture);
     if (capture_device_idx > 0 &&
-        capture_device_idx < global::capture_devices.size()) {
+        static_cast<std::size_t>(capture_device_idx) <=
+            global::capture_devices.size()) {
       config.capture.pDeviceID =
-          &global::capture_devices[capture_device_idx - 1].id;
+          &global::capture_devices[static_cast<std::size_t>(capture_device_idx -
+                                                            1)]
+               .id;
     }
     config.capture.format = ma_format_f32;
-    config.capture.channels = std::clamp(capture_device_channels_count, 1, 2);
-    config.sampleRate = capture_device_sample_rate_hz;
+    config.capture.channels = this->capture_stereo ? 2 : 1;
+    config.sampleRate = this->capture_sample_rate;
     config.dataCallback = handle_audio_data;
     config.pUserData = this;
 
     auto result = ma_device_init(nullptr, &config, &this->capture_device);
-    if ((result = ma_device_start(&this->capture_device)) != MA_SUCCESS) {
+    if (result == MA_SUCCESS &&
+        (result = ma_device_start(&this->capture_device)) != MA_SUCCESS) {
+      ma_device_uninit(&this->capture_device);
+    }
+    if (result != MA_SUCCESS) {
       LOG_ERROR("failed to open audio capture device; {}",
                 ma_result_description(result));
-      ma_device_uninit(&this->capture_device);
     } else {
+      this->capture_device_initialized = true;
       LOG_INFO("using audio capture device: {}",
                this->capture_device.capture.name);
     }
@@ -548,131 +593,44 @@ void State::start_audio_devices(int playback_device_idx,
 }
 
 /**
- * Stops and uninitializes all audio devices. This is safe to call even if
- * one or both devices were never successfully initialized; in that case,
- * `ma_device_uninit` will simply be a no-op.
+ * Stops and uninitializes all audio devices that were successfully
+ * initialized before.
  */
 void State::stop_audio_devices() {
-  ma_device_uninit(&this->playback_device);
-  ma_device_uninit(&this->capture_device);
-}
-
-/**
- * Reads an ODIN access key from the specified file if it exists.
- */
-std::error_code read_access_key_file(const std::filesystem::path &path,
-                                     std::string &data) {
-  std::ifstream file(path, std::ios::binary);
-  if (file) {
-    std::ostringstream ss;
-    ss << file.rdbuf();
-    if (!file.good() && !file.eof()) {
-      return std::make_error_code(std::errc::io_error);
-    }
-    data = ss.str();
+  if (this->playback_device_initialized) {
+    this->playback_device_initialized = false;
+    ma_device_uninit(&this->playback_device);
   }
-  return std::error_code{};
-}
-
-/**
- * Writes an ODIN access key to the specified file.
- */
-std::error_code write_access_key_file(const std::filesystem::path &path,
-                                      const std::string &data) {
-  std::ofstream file(path, std::ios::binary);
-  if (!file) {
-    return std::make_error_code(std::errc::no_such_file_or_directory);
+  if (this->capture_device_initialized) {
+    this->capture_device_initialized = false;
+    ma_device_uninit(&this->capture_device);
   }
-  file.write(data.data(), data.size());
-  if (!file) {
-    return std::make_error_code(std::errc::io_error);
-  }
-  return std::error_code{};
-}
-
-/**
- * Creates an `OdinTokenGenerator` instance. If the provided access key is
- * non-empty, it is used to create the token generator. Otherwise, a new
- * access key is generated (and stored in the provided string) during
- * creation.
- */
-OpaquePtr<OdinTokenGenerator> get_token_generator(std::string &access_key) {
-  OdinTokenGenerator *token_generator;
-  if (!access_key.empty()) {
-    CHECK(odin_token_generator_create(access_key.data(), &token_generator));
-  } else {
-    CHECK(odin_token_generator_create(nullptr, &token_generator));
-    char out_access_key[128];
-    uint32_t out_access_key_length = sizeof(out_access_key) - 1;
-    CHECK(odin_token_generator_get_access_key(token_generator, out_access_key,
-                                              &out_access_key_length));
-    access_key = std::string(out_access_key, out_access_key_length);
-  }
-
-  return {token_generator, &odin_token_generator_free};
-}
-
-/**
- * Constructs a JSON payload with the audience, room ID, user ID and
- * validity timestamps, then signs it using the provided token generator to
- * produce a JWT for authentication in the ODIN network.
- */
-std::string generate_token(OpaquePtr<OdinTokenGenerator> &token_generator,
-                           const std::string &room_id,
-                           const std::string &user_id) {
-  auto nbf = time(nullptr);
-  auto exp = nbf + 300; /* 5 minutes */
-
-  nlohmann::json claims = {
-      {"rid", room_id},
-      {"uid", user_id},
-      {"nbf", nbf},
-      {"exp", exp},
-  };
-
-  if (has_argument("bypass-gateway")) {
-    claims.update({
-        {"adr", get_argument<std::string>("server-url")},
-        {"aud", "sfu"},
-        {"cid", "<no_customer>"},
-    });
-  }
-
-  std::string token(1024, '\0');
-  uint32_t token_length = token.size();
-  CHECK(odin_token_generator_sign(token_generator.get(), claims.dump().c_str(),
-                                  &token[0], &token_length));
-  token.resize(token_length);
-
-  return token;
 }
 
 /**
  * Callback invoked when a voice datagram is received from the room. This
  * function is registered with the ODIN room to handle incoming audio data.
- * It verifies the room reference, looks up the decoder for the source peer
- * and pushes the datagram into it for decoding and playback.
+ * It loads the current media snapshot, looks up the decoder for the source
+ * peer and pushes the datagram into it for decoding and playback.
  */
-void on_datagram(OdinRoom *room, const OdinDatagramProperties *properties,
+void on_datagram(OdinRoom *, const OdinDatagramProperties *properties,
                  const uint8_t *bytes, uint32_t bytes_length, void *user_data) {
   const auto state = reinterpret_cast<State *>(user_data);
-  assert(state->room.get() == room);
-  if (auto it = state->decoders.find(properties->peer_id);
-      it != state->decoders.end()) {
-    CHECK(odin_decoder_push(it->second.ptr.get(), bytes, bytes_length));
+  const auto media = state->load_media();
+  if (auto it = media->decoders.find(properties->peer_id);
+      it != media->decoders.end()) {
+    CHECK(odin_decoder_push(it->second->ptr.get(), bytes, bytes_length));
   }
 }
 
 /**
  * Callback invoked when an RPC message is received from the room. This
  * function is registered with the ODIN connection pool to handle incoming RPC
- * datagrams. It verifies the room reference, deserializes the MessagePack
- * payload into JSON, converts it to a server event variant and dispatches it
- * to the appropriate handler.
+ * messages. It parses the JSON payload, converts it to a server event variant
+ * and dispatches it to the appropriate handler.
  */
-void on_rpc(OdinRoom *room, const char *text, void *user_data) {
+void on_rpc(OdinRoom *, const char *text, void *user_data) {
   const auto state = reinterpret_cast<State *>(user_data);
-  assert(state->room.get() == room);
   try {
     nlohmann::json rpc = nlohmann::json::parse(text);
     LOG_DEBUG("received rpc: {}", rpc.dump());
@@ -692,19 +650,19 @@ void on_rpc(OdinRoom *room, const char *text, void *user_data) {
                    [state](const api::server::PeerLeft &u) {
                      state->on_peer_left(u.peer_id);
                    },
-                   [state](const api::server::PeerChanged &u) {
+                   [](const api::server::PeerChanged &) {
                      // unused
                    },
-                   [state](const api::server::NewReconnectToken &u) {
+                   [](const api::server::NewReconnectToken &) {
                      // unused
                    },
-                   [state](const api::server::MessageReceived &u) {
+                   [](const api::server::MessageReceived &) {
                      // unused
                    },
                    [state](const api::server::RoomStatusChanged &u) { // TODO
                      state->on_room_status_changed(u.status);
                    },
-                   [state](const api::server::Error &u) { // TODO
+                   [](const api::server::Error &u) { // TODO
                      LOG_ERROR("server error: {}", u.message);
                    },
                },
@@ -752,20 +710,23 @@ int main(int argc, char *argv[]) {
   OdinCipher *cipher = odin_crypto_create(ODIN_CRYPTO_VERSION);
   if (has_argument("password")) {
     auto password = get_argument<std::string>("password");
-    LOG_INFO("configuring ODIN cipher with password '{}'", password);
+    if (password.size() > std::numeric_limits<uint32_t>::max()) {
+      LOG_CRITICAL("master password is too long");
+    }
+    LOG_INFO("configuring ODIN cipher with master password");
     odin_crypto_set_password(cipher,
                              reinterpret_cast<const uint8_t *>(password.data()),
-                             password.length());
+                             static_cast<uint32_t>(password.size()));
   }
 
   /**
    * Start playback/capture audio devices.
    */
   state.start_audio_devices(get_argument<int>("output-device"),
-                            get_argument<int>("output-sample-rate"),
+                            get_argument<uint32_t>("output-sample-rate"),
                             get_argument<int>("output-channels"),
                             get_argument<int>("input-device"),
-                            get_argument<int>("input-sample-rate"),
+                            get_argument<uint32_t>("input-sample-rate"),
                             get_argument<int>("input-channels"));
 
   /**
@@ -811,14 +772,11 @@ int main(int argc, char *argv[]) {
       LOG_WARNING("failed to write access key to '{}'; {}",
                   ODIN_ACCESS_KEY_FILE, e.message());
     }
-    LOG_DEBUG("using access key: {}", access_key);
-
     room_token = generate_token(token_generator, room_id, user_id);
     token_generator.reset();
   } else {
     room_token = get_argument<std::string>("room-token");
   }
-  LOG_DEBUG("using room token: {}", room_token);
 
   /**
    * Build custom authentication string.
@@ -846,12 +804,16 @@ int main(int argc, char *argv[]) {
   OdinRoomEvents events{
       .on_datagram = &on_datagram,
       .on_rpc = &on_rpc,
+      .on_socket = nullptr,
       .user_data = reinterpret_cast<void *>(&state),
   };
+  // Publish the cipher before room creation can start delivering callbacks.
+  // Audio callbacks wait for the atomic room publication before sending.
+  state.cipher = cipher;
   CHECK(odin_room_create(gateway.data(), authentication.dump().data(), &events,
                          cipher, &room));
-  state.room = {room, odin_room_free};
-  state.cipher = cipher;
+  OpaquePtr<OdinRoom> room_owner(room, &odin_room_free);
+  state.room.store(room, std::memory_order_release);
 
   /**
    * Wait for user input.
@@ -870,7 +832,14 @@ int main(int argc, char *argv[]) {
   LOG_INFO("leaving room and closing connection to server");
   odin_room_close(room);
 
-  /*`
+  /**
+   * Cleanup
+   */
+  state.room.store(nullptr, std::memory_order_release);
+  room_owner.reset();
+  state.store_media(std::make_shared<const MediaState>());
+
+  /**
    * Shutdown the ODIN Voice runtime.
    */
   odin_shutdown();

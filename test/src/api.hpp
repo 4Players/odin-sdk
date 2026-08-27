@@ -152,8 +152,9 @@ template <> struct adl_serializer<api::server::Event> {
     if (!j.is_object() || j.size() != 1) {
       throw std::runtime_error("invalid rpc payload format");
     }
-    const auto &event_name = j.cbegin().key();
-    const auto &event_data = j.cbegin().value();
+    const auto event = j.cbegin();
+    const auto &event_name = event.key();
+    const auto &event_data = event.value();
     if (event_name == "Joined") {
       e = event_data.get<api::server::Joined>();
     } else if (event_name == "Left") {

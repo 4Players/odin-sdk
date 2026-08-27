@@ -1,5 +1,7 @@
 include(FetchContent)
 
+add_library(sample_deps INTERFACE)
+
 # =============================================================================
 # cxxopts
 # =============================================================================
@@ -14,7 +16,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cxxopts)
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${cxxopts_SOURCE_DIR}/include)
+target_include_directories(sample_deps SYSTEM INTERFACE ${cxxopts_SOURCE_DIR}/include)
 
 # =============================================================================
 # nlohmann::json
@@ -30,7 +32,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${nlohmann_json_SOURCE_DIR}/include)
+target_include_directories(sample_deps SYSTEM INTERFACE ${nlohmann_json_SOURCE_DIR}/include)
 
 # =============================================================================
 # miniaudio
@@ -46,7 +48,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(miniaudio)
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${miniaudio_SOURCE_DIR})
+target_include_directories(sample_deps SYSTEM INTERFACE ${miniaudio_SOURCE_DIR})
 
 # =============================================================================
 # spdlog
@@ -62,4 +64,4 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${spdlog_SOURCE_DIR}/include)
+target_include_directories(sample_deps SYSTEM INTERFACE ${spdlog_SOURCE_DIR}/include)
