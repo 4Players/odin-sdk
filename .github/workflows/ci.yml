@@ -14,7 +14,7 @@ jobs:
       - name: Configure and Build
         run: |
           mkdir -p test/build && cd test/build
-          cmake .. -G "Visual Studio 17 2022" -A x64
+          cmake .. -A x64
           cmake --build . --config Release
       - name: Upload Job Artifacts
         uses: actions/upload-artifact@v4
@@ -64,7 +64,7 @@ jobs:
       - name: Upload Job Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: odin-test-client-macos-x86_64
+          name: odin-test-client-macos-aarch64
           path: |
             test/build/odin_client
             test/build/libodin.dylib
