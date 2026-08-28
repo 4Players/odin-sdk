@@ -688,6 +688,8 @@ odin_encoder_set_position(encoder, 0x01 | 0x04, &pos);
 
 By default, new ODIN encoders publish on channel 1 at the origin. This is represented internally by a single position entry for channel 1 (`0x01`). If you want to publish on multiple channels, call `odin_encoder_set_position()` with the corresponding bitmask. If you clear all positions, the encoder will stop publishing on those channels entirely.
 
+**Note:** While a room addresses up to 64 channels, each encoder can hold positions for **at most 12 channels** at a time. Since the set of positions determines which channels the encoder transmits on, this also caps the number of channels a single encoder can publish on simultaneously. Attempting to set positions beyond this limit fails with `ODIN_ERROR_AUDIO_POSITION_LIMIT_REACHED`. If you need to transmit on more channels, distribute them across multiple encoders.
+
 Use `odin_encoder_clear_position()` to dynamically remove channel positions when a channel becomes inactive. Once cleared, the server will stop using positional data for those channels and no audio will be published on them until a new position is set.
 
 ```cpp
