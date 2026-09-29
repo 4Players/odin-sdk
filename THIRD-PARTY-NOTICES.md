@@ -8,41 +8,42 @@ multiple licenses are used under the license they are listed with here.
 
 This license applies to the following components:
 
-adler2, allocator-api2, android_system_properties, anstream, anstyle,
+adler2, aead, aes, aes-gcm, android_system_properties, anstream, anstyle,
 anstyle-parse, anstyle-query, anstyle-wincon, anyhow, anymap3, arrayvec,
-atomic-waker, aws-lc-sys, az, base64, bit-set, bit-vec, bitflags, bytemuck,
-cfg-if, chacha20, chrono, clap, clap_builder, clap_derive, clap_lex,
-colorchoice, const-random, const-random-macro, core-foundation,
-core-foundation-sys, cpufeatures, crc32fast, deep_filter, displaydoc, dlv-list,
+atomic-waker, aws-lc-sys, az, base64, bit-set, bit-vec, bitflags, block-buffer,
+bytemuck, cfg-if, chacha20, chrono, cipher, clap, clap_builder, clap_derive,
+clap_lex, cmov, colorchoice, const-oid, const-random, const-random-macro,
+core-foundation, core-foundation-sys, cpubits, cpufeatures, crc32fast,
+crypto-common, ctr, ctutils, deep_filter, digest, displaydoc, dlv-list,
 downcast-rs, dyn-clone, dyn-hash, either, equivalent, erased-serde, errno,
-fastbloom, fastrand, filetime, fixed, flate2, fnv, form_urlencoded, futures,
+fastbloom, filetime, fixed, flate2, fnv, form_urlencoded, futures,
 futures-channel, futures-core, futures-executor, futures-io, futures-macro,
-futures-sink, futures-task, futures-util, getrandom, half, hashbrown, heck,
-hound, http, httparse, httpdate, hyper-rustls, iana-time-zone, idna,
-idna_adapter, indexmap, inventory, ipnet, is_terminal_polyfill, itertools, itoa,
-jni, jni-macros, jni-sys, jni-sys-macros, lazy_static, libc, linux-raw-sys,
-lock_api, log, lru-slab, maplit, matrixmultiply, memo-map, minijinja,
-miniz_oxide, ndarray, ntapi, num-complex, num-integer, num-traits, num_enum,
-num_enum_derive, objc2-core-foundation, objc2-io-kit, objc2-open-directory,
-once_cell, once_cell_polyfill, openssl-probe, parking_lot, parking_lot_core,
-pastey, percent-encoding, pin-project, pin-project-internal, pin-project-lite,
-portable-atomic, primal-check, proc-macro-crate, proc-macro2, quinn,
-quinn-proto, quinn-udp, quote, rand, rand_core, rand_pcg, rawpointer, regex,
-regex-automata, regex-syntax, reqwest, ring, rustc-hash, rustfft, rustix,
-rustls, rustls-native-certs, rustls-pki-types, rustls-platform-verifier,
-rustls-platform-verifier-android, rustversion, safetensors, scopeguard,
-security-framework, security-framework-sys, semver, serde, serde_bytes,
-serde_core, serde_derive, serde_json, simd_cesu8, simdutf8, siphasher, smallvec,
-socket2, stable_deref_trait, strength_reduce, string-interner, syn,
-sync_wrapper, tar, tempfile, thiserror, thiserror-impl, thread_local, tinyvec,
-tinyvec_macros, tokio-rustls, toml_datetime, toml_edit, toml_parser, tract-core,
-tract-data, tract-linalg, tract-nnef, tract-pulse-opl, transpose, typeid,
-typenum, unicode-ident, url, utf8_iter, utf8parse, winapi, windows,
-windows-collections, windows-core, windows-future, windows-implement,
-windows-interface, windows-link, windows-numerics, windows-result,
-windows-strings, windows-sys, windows-targets, windows-threading,
-windows_aarch64_msvc, windows_x86_64_gnu, windows_x86_64_msvc, xattr, zerocopy,
-zerocopy-derive, zeroize.
+futures-sink, futures-task, futures-util, getrandom, ghash, half, hashbrown,
+heck, hmac, hound, http, httparse, httpdate, hybrid-array, hyper-rustls,
+iana-time-zone, idna, idna_adapter, indexmap, inout, inventory, ipnet,
+is_terminal_polyfill, itertools, itoa, jni, jni-macros, jni-sys, jni-sys-macros,
+lazy_static, libc, linux-raw-sys, lock_api, log, lru-slab, maplit,
+matrixmultiply, miniz_oxide, ndarray, ntapi, num-complex, num-integer,
+num-traits, num_enum, num_enum_derive, objc2-core-foundation, objc2-io-kit,
+objc2-open-directory, once_cell, once_cell_polyfill, openssl-probe, parking_lot,
+parking_lot_core, pastey, pbkdf2, percent-encoding, pin-project,
+pin-project-internal, pin-project-lite, polyval, portable-atomic, primal-check,
+proc-macro-crate, proc-macro2, quinn, quinn-proto, quinn-udp, quote, rand,
+rand_core, rand_pcg, rawpointer, regex-automata, regex-syntax, reqwest, ring,
+rustc-hash, rustfft, rustix, rustls, rustls-native-certs, rustls-pki-types,
+rustls-platform-verifier, rustls-platform-verifier-android, rustversion,
+scopeguard, security-framework, security-framework-sys, semver, serde,
+serde_bytes, serde_core, serde_derive, serde_json, sha2, simd_cesu8, simdutf8,
+siphasher, smallvec, socket2, stable_deref_trait, strength_reduce,
+string-interner, syn, sync_wrapper, tar, thiserror, thiserror-impl,
+thread_local, tinyvec, tokio-rustls, toml_datetime, toml_edit, toml_parser,
+tract-core, tract-data, tract-linalg, tract-nnef, tract-pulse-opl, transpose,
+typeid, typenum, unicode-ident, universal-hash, url, utf8_iter, utf8parse,
+winapi, windows, windows-collections, windows-core, windows-future,
+windows-implement, windows-interface, windows-link, windows-numerics,
+windows-result, windows-strings, windows-sys, windows-targets,
+windows-threading, windows_aarch64_msvc, windows_x86_64_gnu,
+windows_x86_64_msvc, xattr, zerocopy, zerocopy-derive, zeroize.
 
 ```
                                  Apache License
@@ -252,30 +253,30 @@ zerocopy-derive, zeroize.
 
 This license applies to the following components:
 
-aho-corasick, aws-lc-sys, byteorder, bytes, combine, crunchy, derive-new,
-http-body, http-body-util, hyper, hyper-util, libm, libsamplerate, matchers,
-memchr, mio, nom, nom-language, nu-ansi-term, objc2, objc2-encode,
-objc2-foundation, ordered-float, ordered-multimap, realfft, rmp, rmp-serde,
-rmpv, rust-ini, same-file, scan_fmt, schannel, sharded-slab, simd-adler32, slab,
-strsim, synstructure, sysinfo, tokio, tokio-macros, tokio-stream, tokio-util,
-tower, tower-http, tower-layer, tower-service, tracing, tracing-attributes,
-tracing-core, tracing-log, tracing-subscriber, try-lock, urlencoding, walkdir,
-want, winapi-util, winnow, zmij.
+aws-lc-sys, byteorder, bytes, combine, crunchy, derive-new, http-body,
+http-body-util, hyper, hyper-util, libm, libsamplerate, matchers, memchr, mio,
+nom, nom-language, nu-ansi-term, objc2, objc2-encode, objc2-foundation,
+ordered-float, ordered-multimap, realfft, rmp, rmp-serde, rmpv, rust-ini,
+same-file, schannel, sharded-slab, simd-adler32, slab, strsim, synstructure,
+sysinfo, tokio, tokio-macros, tokio-stream, tokio-util, tower, tower-http,
+tower-layer, tower-service, tracing, tracing-attributes, tracing-core,
+tracing-log, tracing-subscriber, try-lock, urlencoding, walkdir, want,
+winapi-util, winnow, zmij.
 
 Copyright notices include, among others:
 
 - Copyright (c) 2014 Benjamin Sago (nu-ansi-term)
 - Copyright (c) 2014 Carl Lerche and other MIO contributors (mio)
+- Copyright (c) 2014 Mathijs van de Nes (tracing-core)
 - Copyright (c) 2014 Y. T. CHUNG (rust-ini)
 - Copyright (c) 2014-2019 Geoffroy Couprie (nom)
 - Copyright (c) 2014-2026 Sean McArthur (hyper)
-- Copyright (c) 2015 Andrew Gallant (aho-corasick, byteorder, memchr, walkdir)
+- Copyright (c) 2015 Andrew Gallant (byteorder, memchr, walkdir)
 - Copyright (c) 2015 Danny Guo (strsim)
 - Copyright (c) 2015 Guillaume Gomez (sysinfo)
 - Copyright (c) 2015 Jonathan Reem (ordered-float)
 - Copyright (c) 2015 Markus Westerlind (combine)
 - Copyright (c) 2015 steffengy (schannel)
-- Copyright (c) 2015 wlentz (scan_fmt)
 - Copyright (c) 2015-2020 the fiat-crypto authors (aws-lc-sys)
 - Copyright (c) 2016 Alex Crichton (try-lock)
 - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com> (strsim)
@@ -331,9 +332,13 @@ aws-lc-sys, opus (libopus), subtle, webrtc-apm, webrtc-apm-sys.
 
 Copyright notices include, among others:
 
+- Copyright (c) 2003-2004, Mark Borgerding (webrtc-apm-sys)
+- Copyright (c) 2005-2017, Xiph.Org Foundation (webrtc-apm-sys)
+- Copyright (c) 2007-2017, Jean-Marc Valin (webrtc-apm-sys)
 - Copyright (c) 2011, The WebRTC project authors. All rights reserved. (webrtc-apm-sys)
 - Copyright (c) 2016-2017 Isis Agora Lovecruft, Henry de Valence. All rights reserved. (subtle)
 - Copyright (c) 2016-2024 Isis Agora Lovecruft. All rights reserved. (subtle)
+- Copyright (c) 2017, Mozilla (webrtc-apm-sys)
 
 ```
 Redistribution and use in source and binary forms, with or without
@@ -408,9 +413,18 @@ Copyright notices include, among others:
 
 - Copyright (c) 1995-2003 by Internet Software Consortium (aws-lc-rs, aws-lc-sys, opus, opus-sys)
 - Copyright (c) 2004-2010 by Internet Systems Consortium, Inc. ("ISC") (aws-lc-rs, aws-lc-sys, opus, opus-sys)
+- Copyright (c) 2014, Intel Corporation. (ring)
 - Copyright 2015 Brian Smith. (rustls-webpki)
+- Copyright 2015-2016 Brian Smith. (ring)
 - Copyright 2015-2016 Brian Smith. (untrusted)
+- Copyright 2015-2022 Brian Smith. (ring)
 - Copyright 2015-2025 Brian Smith. (ring)
+- Copyright 2016 Brian Smith. (ring)
+- Copyright 2016-2024 Brian Smith. (ring)
+- Copyright 2018 Brian Smith. (ring)
+- Copyright 2019-2024 Brian Smith. (ring)
+- Copyright 2024 Brian Smith. (ring)
+- Copyright 2025 Brian Smith. (ring)
 
 ```
 Permission to use, copy, modify, and/or distribute this software for any
@@ -503,388 +517,6 @@ Except as contained in this notice, the name of a copyright holder shall
 not be used in advertising or otherwise to promote the sale, use or other
 dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
-```
-
-## Mozilla Public License 2.0
-
-This license applies to the following components:
-
-dyn-eq.
-
-```
-Mozilla Public License Version 2.0
-==================================
-
-1. Definitions
---------------
-
-1.1. "Contributor"
-    means each individual or legal entity that creates, contributes to
-    the creation of, or owns Covered Software.
-
-1.2. "Contributor Version"
-    means the combination of the Contributions of others (if any) used
-    by a Contributor and that particular Contributor's Contribution.
-
-1.3. "Contribution"
-    means Covered Software of a particular Contributor.
-
-1.4. "Covered Software"
-    means Source Code Form to which the initial Contributor has attached
-    the notice in Exhibit A, the Executable Form of such Source Code
-    Form, and Modifications of such Source Code Form, in each case
-    including portions thereof.
-
-1.5. "Incompatible With Secondary Licenses"
-    means
-
-    (a) that the initial Contributor has attached the notice described
-        in Exhibit B to the Covered Software; or
-
-    (b) that the Covered Software was made available under the terms of
-        version 1.1 or earlier of the License, but not also under the
-        terms of a Secondary License.
-
-1.6. "Executable Form"
-    means any form of the work other than Source Code Form.
-
-1.7. "Larger Work"
-    means a work that combines Covered Software with other material, in 
-    a separate file or files, that is not Covered Software.
-
-1.8. "License"
-    means this document.
-
-1.9. "Licensable"
-    means having the right to grant, to the maximum extent possible,
-    whether at the time of the initial grant or subsequently, any and
-    all of the rights conveyed by this License.
-
-1.10. "Modifications"
-    means any of the following:
-
-    (a) any file in Source Code Form that results from an addition to,
-        deletion from, or modification of the contents of Covered
-        Software; or
-
-    (b) any new file in Source Code Form that contains any Covered
-        Software.
-
-1.11. "Patent Claims" of a Contributor
-    means any patent claim(s), including without limitation, method,
-    process, and apparatus claims, in any patent Licensable by such
-    Contributor that would be infringed, but for the grant of the
-    License, by the making, using, selling, offering for sale, having
-    made, import, or transfer of either its Contributions or its
-    Contributor Version.
-
-1.12. "Secondary License"
-    means either the GNU General Public License, Version 2.0, the GNU
-    Lesser General Public License, Version 2.1, the GNU Affero General
-    Public License, Version 3.0, or any later versions of those
-    licenses.
-
-1.13. "Source Code Form"
-    means the form of the work preferred for making modifications.
-
-1.14. "You" (or "Your")
-    means an individual or a legal entity exercising rights under this
-    License. For legal entities, "You" includes any entity that
-    controls, is controlled by, or is under common control with You. For
-    purposes of this definition, "control" means (a) the power, direct
-    or indirect, to cause the direction or management of such entity,
-    whether by contract or otherwise, or (b) ownership of more than
-    fifty percent (50%) of the outstanding shares or beneficial
-    ownership of such entity.
-
-2. License Grants and Conditions
---------------------------------
-
-2.1. Grants
-
-Each Contributor hereby grants You a world-wide, royalty-free,
-non-exclusive license:
-
-(a) under intellectual property rights (other than patent or trademark)
-    Licensable by such Contributor to use, reproduce, make available,
-    modify, display, perform, distribute, and otherwise exploit its
-    Contributions, either on an unmodified basis, with Modifications, or
-    as part of a Larger Work; and
-
-(b) under Patent Claims of such Contributor to make, use, sell, offer
-    for sale, have made, import, and otherwise transfer either its
-    Contributions or its Contributor Version.
-
-2.2. Effective Date
-
-The licenses granted in Section 2.1 with respect to any Contribution
-become effective for each Contribution on the date the Contributor first
-distributes such Contribution.
-
-2.3. Limitations on Grant Scope
-
-The licenses granted in this Section 2 are the only rights granted under
-this License. No additional rights or licenses will be implied from the
-distribution or licensing of Covered Software under this License.
-Notwithstanding Section 2.1(b) above, no patent license is granted by a
-Contributor:
-
-(a) for any code that a Contributor has removed from Covered Software;
-    or
-
-(b) for infringements caused by: (i) Your and any other third party's
-    modifications of Covered Software, or (ii) the combination of its
-    Contributions with other software (except as part of its Contributor
-    Version); or
-
-(c) under Patent Claims infringed by Covered Software in the absence of
-    its Contributions.
-
-This License does not grant any rights in the trademarks, service marks,
-or logos of any Contributor (except as may be necessary to comply with
-the notice requirements in Section 3.4).
-
-2.4. Subsequent Licenses
-
-No Contributor makes additional grants as a result of Your choice to
-distribute the Covered Software under a subsequent version of this
-License (see Section 10.2) or under the terms of a Secondary License (if
-permitted under the terms of Section 3.3).
-
-2.5. Representation
-
-Each Contributor represents that the Contributor believes its
-Contributions are its original creation(s) or it has sufficient rights
-to grant the rights to its Contributions conveyed by this License.
-
-2.6. Fair Use
-
-This License is not intended to limit any rights You have under
-applicable copyright doctrines of fair use, fair dealing, or other
-equivalents.
-
-2.7. Conditions
-
-Sections 3.1, 3.2, 3.3, and 3.4 are conditions of the licenses granted
-in Section 2.1.
-
-3. Responsibilities
--------------------
-
-3.1. Distribution of Source Form
-
-All distribution of Covered Software in Source Code Form, including any
-Modifications that You create or to which You contribute, must be under
-the terms of this License. You must inform recipients that the Source
-Code Form of the Covered Software is governed by the terms of this
-License, and how they can obtain a copy of this License. You may not
-attempt to alter or restrict the recipients' rights in the Source Code
-Form.
-
-3.2. Distribution of Executable Form
-
-If You distribute Covered Software in Executable Form then:
-
-(a) such Covered Software must also be made available in Source Code
-    Form, as described in Section 3.1, and You must inform recipients of
-    the Executable Form how they can obtain a copy of such Source Code
-    Form by reasonable means in a timely manner, at a charge no more
-    than the cost of distribution to the recipient; and
-
-(b) You may distribute such Executable Form under the terms of this
-    License, or sublicense it under different terms, provided that the
-    license for the Executable Form does not attempt to limit or alter
-    the recipients' rights in the Source Code Form under this License.
-
-3.3. Distribution of a Larger Work
-
-You may create and distribute a Larger Work under terms of Your choice,
-provided that You also comply with the requirements of this License for
-the Covered Software. If the Larger Work is a combination of Covered
-Software with a work governed by one or more Secondary Licenses, and the
-Covered Software is not Incompatible With Secondary Licenses, this
-License permits You to additionally distribute such Covered Software
-under the terms of such Secondary License(s), so that the recipient of
-the Larger Work may, at their option, further distribute the Covered
-Software under the terms of either this License or such Secondary
-License(s).
-
-3.4. Notices
-
-You may not remove or alter the substance of any license notices
-(including copyright notices, patent notices, disclaimers of warranty,
-or limitations of liability) contained within the Source Code Form of
-the Covered Software, except that You may alter any license notices to
-the extent required to remedy known factual inaccuracies.
-
-3.5. Application of Additional Terms
-
-You may choose to offer, and to charge a fee for, warranty, support,
-indemnity or liability obligations to one or more recipients of Covered
-Software. However, You may do so only on Your own behalf, and not on
-behalf of any Contributor. You must make it absolutely clear that any
-such warranty, support, indemnity, or liability obligation is offered by
-You alone, and You hereby agree to indemnify every Contributor for any
-liability incurred by such Contributor as a result of warranty, support,
-indemnity or liability terms You offer. You may include additional
-disclaimers of warranty and limitations of liability specific to any
-jurisdiction.
-
-4. Inability to Comply Due to Statute or Regulation
----------------------------------------------------
-
-If it is impossible for You to comply with any of the terms of this
-License with respect to some or all of the Covered Software due to
-statute, judicial order, or regulation then You must: (a) comply with
-the terms of this License to the maximum extent possible; and (b)
-describe the limitations and the code they affect. Such description must
-be placed in a text file included with all distributions of the Covered
-Software under this License. Except to the extent prohibited by statute
-or regulation, such description must be sufficiently detailed for a
-recipient of ordinary skill to be able to understand it.
-
-5. Termination
---------------
-
-5.1. The rights granted under this License will terminate automatically
-if You fail to comply with any of its terms. However, if You become
-compliant, then the rights granted under this License from a particular
-Contributor are reinstated (a) provisionally, unless and until such
-Contributor explicitly and finally terminates Your grants, and (b) on an
-ongoing basis, if such Contributor fails to notify You of the
-non-compliance by some reasonable means prior to 60 days after You have
-come back into compliance. Moreover, Your grants from a particular
-Contributor are reinstated on an ongoing basis if such Contributor
-notifies You of the non-compliance by some reasonable means, this is the
-first time You have received notice of non-compliance with this License
-from such Contributor, and You become compliant prior to 30 days after
-Your receipt of the notice.
-
-5.2. If You initiate litigation against any entity by asserting a patent
-infringement claim (excluding declaratory judgment actions,
-counter-claims, and cross-claims) alleging that a Contributor Version
-directly or indirectly infringes any patent, then the rights granted to
-You by any and all Contributors for the Covered Software under Section
-2.1 of this License shall terminate.
-
-5.3. In the event of termination under Sections 5.1 or 5.2 above, all
-end user license agreements (excluding distributors and resellers) which
-have been validly granted by You or Your distributors under this License
-prior to termination shall survive termination.
-
-************************************************************************
-*                                                                      *
-*  6. Disclaimer of Warranty                                           *
-*  -------------------------                                           *
-*                                                                      *
-*  Covered Software is provided under this License on an "as is"       *
-*  basis, without warranty of any kind, either expressed, implied, or  *
-*  statutory, including, without limitation, warranties that the       *
-*  Covered Software is free of defects, merchantable, fit for a        *
-*  particular purpose or non-infringing. The entire risk as to the     *
-*  quality and performance of the Covered Software is with You.        *
-*  Should any Covered Software prove defective in any respect, You     *
-*  (not any Contributor) assume the cost of any necessary servicing,   *
-*  repair, or correction. This disclaimer of warranty constitutes an   *
-*  essential part of this License. No use of any Covered Software is   *
-*  authorized under this License except under this disclaimer.         *
-*                                                                      *
-************************************************************************
-
-************************************************************************
-*                                                                      *
-*  7. Limitation of Liability                                          *
-*  --------------------------                                          *
-*                                                                      *
-*  Under no circumstances and under no legal theory, whether tort      *
-*  (including negligence), contract, or otherwise, shall any           *
-*  Contributor, or anyone who distributes Covered Software as          *
-*  permitted above, be liable to You for any direct, indirect,         *
-*  special, incidental, or consequential damages of any character      *
-*  including, without limitation, damages for lost profits, loss of    *
-*  goodwill, work stoppage, computer failure or malfunction, or any    *
-*  and all other commercial damages or losses, even if such party      *
-*  shall have been informed of the possibility of such damages. This   *
-*  limitation of liability shall not apply to liability for death or   *
-*  personal injury resulting from such party's negligence to the       *
-*  extent applicable law prohibits such limitation. Some               *
-*  jurisdictions do not allow the exclusion or limitation of           *
-*  incidental or consequential damages, so this exclusion and          *
-*  limitation may not apply to You.                                    *
-*                                                                      *
-************************************************************************
-
-8. Litigation
--------------
-
-Any litigation relating to this License may be brought only in the
-courts of a jurisdiction where the defendant maintains its principal
-place of business and such litigation shall be governed by laws of that
-jurisdiction, without reference to its conflict-of-law provisions.
-Nothing in this Section shall prevent a party's ability to bring
-cross-claims or counter-claims.
-
-9. Miscellaneous
-----------------
-
-This License represents the complete agreement concerning the subject
-matter hereof. If any provision of this License is held to be
-unenforceable, such provision shall be reformed only to the extent
-necessary to make it enforceable. Any law or regulation which provides
-that the language of a contract shall be construed against the drafter
-shall not be used to construe this License against a Contributor.
-
-10. Versions of the License
----------------------------
-
-10.1. New Versions
-
-Mozilla Foundation is the license steward. Except as provided in Section
-10.3, no one other than the license steward has the right to modify or
-publish new versions of this License. Each version will be given a
-distinguishing version number.
-
-10.2. Effect of New Versions
-
-You may distribute the Covered Software under the terms of the version
-of the License under which You originally received the Covered Software,
-or under the terms of any subsequent version published by the license
-steward.
-
-10.3. Modified Versions
-
-If you create software not governed by this License, and you want to
-create a new license for such software, you may create and use a
-modified version of this License if you rename the license and remove
-any references to the name of the license steward (except to note that
-such modified license differs from this License).
-
-10.4. Distributing Source Code Form that is Incompatible With Secondary
-Licenses
-
-If You choose to distribute Source Code Form that is Incompatible With
-Secondary Licenses under the terms of this version of the License, the
-notice described in Exhibit B of this License must be attached.
-
-Exhibit A - Source Code Form License Notice
--------------------------------------------
-
-  This Source Code Form is subject to the terms of the Mozilla Public
-  License, v. 2.0. If a copy of the MPL was not distributed with this
-  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
-If it is not possible or desirable to put the notice in a particular
-file, then You may include the notice in a location (such as a LICENSE
-file in a relevant directory) where a recipient would be likely to look
-for such a notice.
-
-You may add additional accurate notices of copyright ownership.
-
-Exhibit B - "Incompatible With Secondary Licenses" Notice
----------------------------------------------------------
-
-  This Source Code Form is "Incompatible With Secondary Licenses", as
-  defined by the Mozilla Public License, v. 2.0.
 ```
 
 ## Community Data License Agreement Permissive 2.0
